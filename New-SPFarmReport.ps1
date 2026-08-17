@@ -52,6 +52,9 @@ param(
     [switch]$SkipHealthAnalyzer,
 
     [Parameter()]
+    [switch]$IncludeCentralAdminHealthReports,
+
+    [Parameter()]
     [switch]$SkipSearchTopology,
 
     [Parameter()]
@@ -1439,6 +1442,10 @@ function Get-SPReportHealthAnalyzer {
 }
 
 function Get-SPReportHealthAnalyzerFindings {
+    if (-not $IncludeCentralAdminHealthReports) {
+        return @(Get-SPReportHealthFallbackRows)
+    }
+
     $adminWebApplication = Get-SPWebApplication -IncludeCentralAdministration | Where-Object { Get-ObjectValue -InputObject $_ -PropertyName 'IsAdministrationWebApplication' } | Select-Object -First 1
     if (-not $adminWebApplication) {
         return [pscustomobject]@{ Error = 'Central Administration web application could not be found.'; Details = '' }

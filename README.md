@@ -85,6 +85,10 @@ Report language. Supported values:
 - `en-US`
 - `tr-TR`
 
+`-IncludeCentralAdminHealthReports`
+
+Reads the Central Administration Health Reports list for detailed unhealthy Health Analyzer findings. This is disabled by default because some farms can take a long time to open or enumerate that list. Without this switch, the findings section uses fast Health Analyzer rule inventory fallback rows with remediation guidance.
+
 ### Skip Switches
 
 By default, the script attempts to collect all sections. Use skip switches for very large farms or restricted environments.
@@ -248,7 +252,7 @@ Servers with SharePoint role `Invalid`:
 - Modified date
 - Rule ID
 
-Rows without actual finding data are filtered out. To avoid long waits on large Central Administration Health Reports lists, the script reads the 200 most recently modified report items and returns up to 50 finding rows. When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If Central Administration does not expose populated finding fields, the section falls back to Health Analyzer rule inventory rows with fallback remediation guidance instead of returning an empty table.
+By default, this section uses fast Health Analyzer rule inventory fallback rows with remediation guidance and does not open the Central Administration Health Reports list. Use `-IncludeCentralAdminHealthReports` to read detailed Central Administration findings. When enabled, rows without actual finding data are filtered out, the script reads the 200 most recently modified report items, and it returns up to 50 finding rows. When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If Central Administration does not expose populated finding fields, the section falls back to Health Analyzer rule inventory rows with fallback remediation guidance instead of returning an empty table.
 
 ## Local Server Health
 
