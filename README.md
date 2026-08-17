@@ -195,6 +195,7 @@ The report includes these sections when available:
 - Unhealthy Health Analyzer Findings
 - Health Analyzer Rules
 - Search Topology
+- Current Search Application Crawl Jobs
 - Installed Features
 - IIS Application Pools
 - IIS Sites
@@ -247,7 +248,7 @@ Servers with SharePoint role `Invalid`:
 - Modified date
 - Rule ID
 
-Rows without actual finding data are filtered out. When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If no remedy is available but the finding has actionable data, the report includes fallback remediation guidance.
+Rows without actual finding data are filtered out. To avoid long waits on large Central Administration Health Reports lists, the script reads the 200 most recently modified report items and returns up to 50 finding rows. When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If Central Administration does not expose populated finding fields, the section falls back to Health Analyzer rule inventory rows with fallback remediation guidance instead of returning an empty table.
 
 ## Local Server Health
 

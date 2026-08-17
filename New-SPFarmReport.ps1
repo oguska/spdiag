@@ -155,6 +155,8 @@ $script:Translations = @{
         HealthAnalyzerFallbackSolution = 'Review the rule in Central Administration, validate affected services/servers, then run the rule again after remediation.'
         SearchTopologyTitle = 'Search Topology'
         SearchTopologyDescription = 'Active enterprise search topology components.'
+        SearchCrawlJobsTitle = 'Current Search Application Crawl Jobs'
+        SearchCrawlJobsDescription = 'Current crawl status for Search Service Application content sources.'
         InstalledFeaturesTitle = 'Installed Features'
         InstalledFeaturesDescription = 'Installed SharePoint feature definitions. This is a definition inventory, not activation state.'
         IisAppPoolsTitle = 'IIS Application Pools'
@@ -228,6 +230,8 @@ $script:Translations = @{
         HealthAnalyzerFallbackSolution = 'Kuralı Central Administration üzerinden inceleyin, etkilenen servisleri/sunucuları doğrulayın ve düzeltme sonrası kuralı yeniden çalıştırın.'
         SearchTopologyTitle = 'Arama Topolojisi'
         SearchTopologyDescription = 'Etkin kurumsal arama topolojisi bileşenleri.'
+        SearchCrawlJobsTitle = 'Geçerli Arama Uygulaması Tarama İşleri'
+        SearchCrawlJobsDescription = 'Arama Servis Uygulaması içerik kaynakları için geçerli tarama durumu.'
         InstalledFeaturesTitle = 'Yüklü Özellikler'
         InstalledFeaturesDescription = 'Yüklü SharePoint özellik tanımları. Bu bir tanım envanteridir, etkinleştirme durumu değildir.'
         IisAppPoolsTitle = 'IIS Uygulama Havuzları'
@@ -377,6 +381,17 @@ $script:ColumnTranslations = @{
         FailingServices = 'Etkilenen Servisler'
         RuleId = 'Kural Kimliği'
         SearchApplication = 'Arama Uygulaması'
+        ContentSource = 'İçerik Kaynağı'
+        CrawlStatus = 'Tarama Durumu'
+        CrawlStarted = 'Tarama Başlangıcı'
+        CrawlCompleted = 'Tarama Bitişi'
+        CrawlDuration = 'Tarama Süresi'
+        IncrementalCrawlSchedule = 'Artımlı Tarama Zamanlaması'
+        FullCrawlSchedule = 'Tam Tarama Zamanlaması'
+        StartAddresses = 'Başlangıç Adresleri'
+        SuccessCount = 'Başarılı Sayısı'
+        ErrorCount = 'Hata Sayısı'
+        DeleteCount = 'Silinen Sayısı'
         ComponentName = 'Bileşen Adı'
         ComponentType = 'Bileşen Türü'
         ServerName = 'Sunucu Adı'
@@ -881,6 +896,58 @@ function Get-SPListItemFieldText {
     }
 
     return ''
+}
+
+function Get-SPListItemFieldTextByPattern {
+    param(
+        [AllowNull()][object]$Item,
+        [string[]]$Patterns
+    )
+
+    if ($null -eq $Item) { return '' }
+
+    foreach ($field in $Item.Fields) {
+        $names = @(
+            Get-ObjectValue -InputObject $field -PropertyName 'Title'
+            Get-ObjectValue -InputObject $field -PropertyName 'InternalName'
+            Get-ObjectValue -InputObject $field -PropertyName 'StaticName'
+        ) | Where-Object { $_ }
+
+        foreach ($pattern in $Patterns) {
+            if (($names -join ' ') -match $pattern) {
+                try {
+                    $value = $Item[$field.InternalName]
+                    if ($null -ne $value -and [string]$value -ne '') { return (ConvertFrom-HtmlFragmentText $value) }
+                }
+                catch { }
+            }
+        }
+    }
+
+    return ''
+}
+
+function Get-SPReportHealthFallbackRows {
+    if (-not (Test-CommandAvailable -Name Get-SPHealthAnalysisRule)) { return @() }
+
+    Get-SPHealthAnalysisRule | Sort-Object Category, Summary | ForEach-Object {
+        $summary = Get-ObjectValue -InputObject $_ -PropertyName 'Summary'
+        if (-not $summary) { $summary = Get-ObjectValue -InputObject $_ -PropertyName 'Title' }
+
+        [pscustomobject]@{
+            Title            = $summary
+            Category         = Get-ObjectValue -InputObject $_ -PropertyName 'Category'
+            Severity         = Get-ObjectValue -InputObject $_ -PropertyName 'Severity'
+            CurrentStatus    = 'Rule inventory fallback'
+            Explanation      = 'Central Administration Health Reports did not expose populated finding fields for this farm.'
+            Remedy           = ''
+            PossibleSolution = Get-ReportText -Key 'HealthAnalyzerFallbackSolution'
+            FailingServers   = ''
+            FailingServices  = ''
+            Modified         = ''
+            RuleId           = Get-ObjectValue -InputObject $_ -PropertyName 'Id'
+        }
+    }
 }
 
 function Get-SPReportConfigurationDatabase {
@@ -1399,22 +1466,44 @@ function Get-SPReportHealthAnalyzerFindings {
             return [pscustomobject]@{ Error = 'Central Administration Health Reports list could not be found.'; Details = '' }
         }
 
-        foreach ($item in $list.Items) {
+        $query = New-Object Microsoft.SharePoint.SPQuery
+        $query.RowLimit = 200
+        $query.Query = '<OrderBy><FieldRef Name="Modified" Ascending="FALSE" /></OrderBy>'
+
+        $items = $list.GetItems($query)
+        $findings = New-Object System.Collections.ArrayList
+        foreach ($item in $items) {
             $title = Get-SPListItemFieldText -Item $item -FieldNames @('Title', 'Name')
             $category = Get-SPListItemFieldText -Item $item -FieldNames @('Category', 'HealthReportCategory')
+            if (-not $category) { $category = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)category|kategori') }
+
             $severity = Get-SPListItemFieldText -Item $item -FieldNames @('Severity', 'HealthReportSeverity')
+            if (-not $severity) { $severity = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)severity|önem|onem') }
+
             $currentStatus = Get-SPListItemFieldText -Item $item -FieldNames @('Status', 'HealthReportStatus')
+            if (-not $currentStatus) { $currentStatus = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)status|durum') }
+
             $explanation = Get-SPListItemFieldText -Item $item -FieldNames @('Explanation', 'HealthReportExplanation')
+            if (-not $explanation) { $explanation = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)explanation|açıklama|aciklama') }
+
             $remedy = Get-SPListItemFieldText -Item $item -FieldNames @('Remedy', 'HealthReportRemedy')
+            if (-not $remedy) { $remedy = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)remedy|solution|çözüm|cozum|repair') }
+
             $failingServers = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Servers', 'FailingServers', 'Failing_x0020_Servers')
+            if (-not $failingServers) { $failingServers = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)failing.*server|server.*fail|sunucu') }
+
             $failingServices = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Services', 'FailingServices', 'Failing_x0020_Services')
+            if (-not $failingServices) { $failingServices = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)failing.*service|service.*fail|servis') }
+
             $ruleId = Get-SPListItemFieldText -Item $item -FieldNames @('RuleId', 'Rule ID', 'HealthReportRuleId')
+            if (-not $ruleId) { $ruleId = Get-SPListItemFieldTextByPattern -Item $item -Patterns @('(?i)rule.*id|id.*rule|kural') }
+
             $hasFindingData = $severity -or $currentStatus -or $explanation -or $remedy -or $failingServers -or $failingServices -or $ruleId
             if (-not $hasFindingData) { continue }
 
             $possibleSolution = if ($remedy) { $remedy } else { Get-ReportText -Key 'HealthAnalyzerFallbackSolution' }
 
-            [pscustomobject]@{
+            [void]$findings.Add([pscustomobject]@{
                 Title            = $title
                 Category         = $category
                 Severity         = $severity
@@ -1426,8 +1515,13 @@ function Get-SPReportHealthAnalyzerFindings {
                 FailingServices  = $failingServices
                 Modified         = Get-SPListItemFieldText -Item $item -FieldNames @('Modified')
                 RuleId           = $ruleId
-            }
+            })
+
+            if ($findings.Count -ge 50) { break }
         }
+
+        if ($findings.Count -gt 0) { return @($findings) }
+        return @(Get-SPReportHealthFallbackRows)
     }
     finally {
         if ($web) { $web.Dispose() }
@@ -1451,6 +1545,43 @@ function Get-SPReportSearchTopology {
                 ServerName        = $_.ServerName
                 RootDirectory     = Get-ObjectValue $_ 'RootDirectory'
                 IndexPartition    = Get-ObjectValue $_ 'IndexPartitionOrdinal'
+            }
+        }
+    }
+}
+
+function Get-SPReportSearchCrawlJobs {
+    if (-not (Test-CommandAvailable -Name Get-SPEnterpriseSearchServiceApplication)) {
+        return [pscustomobject]@{ Error = 'Search cmdlets are not available in this environment.'; Details = '' }
+    }
+    if (-not (Test-CommandAvailable -Name Get-SPEnterpriseSearchCrawlContentSource)) {
+        return [pscustomobject]@{ Error = 'Get-SPEnterpriseSearchCrawlContentSource is not available in this environment.'; Details = '' }
+    }
+
+    $apps = Get-SPEnterpriseSearchServiceApplication
+    foreach ($app in $apps) {
+        Get-SPEnterpriseSearchCrawlContentSource -SearchApplication $app | Sort-Object Name | ForEach-Object {
+            $started = Get-ObjectValue -InputObject $_ -PropertyName 'CrawlStarted'
+            $completed = Get-ObjectValue -InputObject $_ -PropertyName 'CrawlCompleted'
+            $duration = ''
+            if ($started -and $completed) {
+                try { $duration = ([datetime]$completed - [datetime]$started).ToString() } catch { $duration = '' }
+            }
+
+            [pscustomobject]@{
+                SearchApplication        = Get-ObjectValue -InputObject $app -PropertyName 'Name'
+                ContentSource            = Get-ObjectValue -InputObject $_ -PropertyName 'Name'
+                Type                     = Get-ObjectValue -InputObject $_ -PropertyName 'Type'
+                CrawlStatus              = Get-ObjectValue -InputObject $_ -PropertyName 'CrawlStatus'
+                CrawlStarted             = $started
+                CrawlCompleted           = $completed
+                CrawlDuration            = $duration
+                IncrementalCrawlSchedule = Get-ObjectValue -InputObject $_ -PropertyName 'IncrementalCrawlSchedule'
+                FullCrawlSchedule        = Get-ObjectValue -InputObject $_ -PropertyName 'FullCrawlSchedule'
+                StartAddresses           = Get-ObjectValue -InputObject $_ -PropertyName 'StartAddresses'
+                SuccessCount             = Get-ObjectValue -InputObject $_ -PropertyName 'SuccessCount'
+                ErrorCount               = Get-ObjectValue -InputObject $_ -PropertyName 'ErrorCount'
+                DeleteCount              = Get-ObjectValue -InputObject $_ -PropertyName 'DeleteCount'
             }
         }
     }
@@ -1756,9 +1887,11 @@ try {
 
     if (-not $SkipSearchTopology) {
         Add-SectionFromCollector -Title (Get-ReportText -Key 'SearchTopologyTitle') -Description (Get-ReportText -Key 'SearchTopologyDescription') -Collector { Get-SPReportSearchTopology } -Columns @('SearchApplication', 'ComponentName', 'ComponentType', 'ServerName', 'RootDirectory', 'IndexPartition')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'SearchCrawlJobsTitle') -Description (Get-ReportText -Key 'SearchCrawlJobsDescription') -Collector { Get-SPReportSearchCrawlJobs } -Columns @('SearchApplication', 'ContentSource', 'Type', 'CrawlStatus', 'CrawlStarted', 'CrawlCompleted', 'CrawlDuration', 'IncrementalCrawlSchedule', 'FullCrawlSchedule', 'StartAddresses', 'SuccessCount', 'ErrorCount', 'DeleteCount')
     }
     else {
         Add-ReportSection -Title (Get-ReportText -Key 'SearchTopologyTitle') -Description ('{0} -SkipSearchTopology.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('SearchApplication', 'ComponentName', 'ComponentType', 'ServerName') -Status 'Unknown'
+        Add-ReportSection -Title (Get-ReportText -Key 'SearchCrawlJobsTitle') -Description ('{0} -SkipSearchTopology.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('SearchApplication', 'ContentSource', 'CrawlStatus') -Status 'Unknown'
     }
 
     if (-not $SkipFeatureInventory) {
