@@ -335,6 +335,17 @@ function Get-LatestVersionFromText {
     return ($versions | Sort-Object { ConvertTo-VersionNumber $_ } -Descending | Select-Object -First 1)
 }
 
+function ConvertFrom-HtmlFragmentText {
+    param([AllowNull()][object]$Value)
+
+    if ($null -eq $Value) { return '' }
+    $text = [string]$Value
+    $text = $text -replace '(?i)<br\s*/?>', ' '
+    $text = $text -replace '<[^>]+>', ' '
+    $text = [System.Web.HttpUtility]::HtmlDecode($text)
+    return (($text -replace '\s+', ' ').Trim())
+}
+
 function Read-SPReportUpdateCache {
     if (-not $UpdateCachePath) { return $null }
     if (-not (Test-Path -LiteralPath $UpdateCachePath)) { return $null }
@@ -433,10 +444,39 @@ function Get-SPReportUpdatesFromMicrosoftContent {
 
     $escapedProduct = [regex]::Escape($Product)
     $sectionMatch = [regex]::Match($Content, "(?is)##\s+$escapedProduct\s+update history(.*?)(\r?\n##\s+|$)")
+    if (-not $sectionMatch.Success) {
+        $sectionMatch = [regex]::Match($Content, "(?is)<h2[^>]*>\s*$escapedProduct\s+update history\s*</h2>(.*?)(<h2[^>]*>|$)")
+    }
     if (-not $sectionMatch.Success) { return @() }
 
     $updates = New-Object System.Collections.ArrayList
-    $lines = @($sectionMatch.Groups[1].Value -split "\r?\n")
+    $section = $sectionMatch.Groups[1].Value
+
+    if ($section -match '(?is)<tr') {
+        foreach ($row in [regex]::Matches($section, '(?is)<tr[^>]*>(.*?)</tr>')) {
+            $cells = @([regex]::Matches($row.Groups[1].Value, '(?is)<td[^>]*>(.*?)</td>') | ForEach-Object { $_.Groups[1].Value })
+            if ($cells.Count -lt 4) { continue }
+
+            $updateName = ConvertFrom-HtmlFragmentText $cells[0]
+            $kb = (@([regex]::Matches($cells[1], 'KB\s*\d+') | ForEach-Object { ($_.Value -replace '\s+', ' ') }) -join ', ')
+            $latestBuild = Get-LatestVersionFromText (ConvertFrom-HtmlFragmentText $cells[2])
+            $releaseDate = ConvertFrom-HtmlFragmentText $cells[3]
+
+            if ($latestBuild) {
+                [void]$updates.Add([pscustomobject]@{
+                    Product     = $Product
+                    LatestBuild = $latestBuild
+                    UpdateName  = $updateName
+                    KB          = $kb
+                    ReleaseDate = $releaseDate
+                })
+            }
+        }
+
+        return @($updates)
+    }
+
+    $lines = @($section -split "\r?\n")
     foreach ($line in $lines) {
         if ($line -notmatch '^\|') { continue }
         if ($line -match '^\|\s*-') { continue }
@@ -507,7 +547,7 @@ function Get-SPReportMicrosoftLatestSharePointUpdate {
     }
 
     $sources = @(
-        'https://raw.githubusercontent.com/MicrosoftDocs/OfficeDocs-OfficeUpdates-pr/live/OfficeUpdates/sharepoint-updates.md',
+        'https://learn.microsoft.com/en-us/officeupdates/sharepoint-updates?view=officeupdates-raw',
         'https://learn.microsoft.com/en-us/officeupdates/sharepoint-updates'
     )
     $lastError = ''
@@ -517,7 +557,10 @@ function Get-SPReportMicrosoftLatestSharePointUpdate {
             $response = Invoke-WebRequest -Uri $source -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop
             $content = [string]$response.Content
             $updates = @(Get-SPReportUpdatesFromMicrosoftContent -Content $content -Product $product)
-            if ($updates.Count -eq 0) { continue }
+            if ($updates.Count -eq 0) {
+                $lastError = ('No update rows parsed from {0}' -f $source)
+                continue
+            }
 
             Write-SPReportUpdateCache -Product $product -Updates $updates -Source $source
             $latest = $updates | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'LatestBuild') } -Descending | Select-Object -First 1
@@ -698,14 +741,9 @@ function Get-SectionStatus {
 function Get-SPReportFarmVersion {
     $farm = Get-SPFarm
     $build = $farm.BuildVersion
-    $major = [int]$build.Major
     $configDb = Get-SPReportConfigurationDatabase
-
-    $product = switch ($major) {
-        15 { 'SharePoint 2013' }
-        16 { 'SharePoint 2016 / 2019 / Subscription Edition' }
-        default { 'Unknown SharePoint version' }
-    }
+    $product = Get-SPProductUpdateSectionName $build.ToString()
+    if (-not $product) { $product = 'Unknown SharePoint version' }
 
     return [pscustomobject]@{
         Product       = $product
