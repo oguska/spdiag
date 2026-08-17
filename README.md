@@ -1,4 +1,4 @@
-# SharePoint Farm Diagnostic Report
+﻿# SharePoint Farm Diagnostic Report
 
 `New-SPFarmReport.ps1` creates a single offline HTML diagnostic report for SharePoint 2013, 2016, 2019, and Subscription Edition farms.
 
@@ -61,7 +61,8 @@ Force a fresh Microsoft lookup even when the cache is still fresh:
 - IIS sections report only the local server where the script is executed.
 - Full scan is the default. Use `-SkipSiteCollections`, `-SkipTimerJobs`, `-SkipHealthAnalyzer`, `-SkipSearchTopology`, `-SkipFeatureInventory`, or `-SkipIisDetails` to reduce runtime on very large farms.
 - Older `-Include...` switches are still accepted but no longer required because these sections are included by default.
-- `Farm Server Update Status` compares server builds against the highest SharePoint build currently present in the farm and, when Microsoft access is available, against the latest update listed on Microsoft Learn.
+- `Local Server Health` checks local fixed drives only.
+- `Farm Server Update Status` shows each server version, but detects the installed product and compares latest CU/security update status using the farm build from `Get-SPFarm.BuildVersion`.
 - Use `-LatestKnownSharePointBuild` and `-LatestKnownSharePointUpdateName` to override or provide latest update details manually.
 - Use `-SkipMicrosoftUpdateCheck` to avoid outbound Microsoft access attempts.
 - Default update cache path is `C:\ProgramData\SPFarmReport\SharePointUpdatesCache.json`.

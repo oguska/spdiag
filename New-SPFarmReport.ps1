@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Creates an offline HTML diagnostic report for SharePoint 2013, 2016, 2019, and Subscription Edition farms.
 
@@ -122,7 +122,41 @@ $script:Translations = @{
         ContentDbTitle = 'Content Databases'
         ContentDbDescription = 'Content database sizing, site counts, and upgrade indicators.'
         LocalHealthTitle = 'Local Server Health'
-        LocalHealthDescription = 'Operating system, memory, processor, PowerShell version, and all attached logical disk space analysis on the server where the script ran.'
+        LocalHealthDescription = 'Operating system, memory, processor, PowerShell version, and local fixed disk space analysis on the server where the script ran.'
+        AllDatabasesTitle = 'All SharePoint Databases'
+        AllDatabasesDescription = 'All SharePoint databases registered in the configuration database.'
+        ServiceApplicationsTitle = 'Service Applications'
+        ServiceApplicationsDescription = 'Service applications provisioned in the farm.'
+        ServiceApplicationProxiesTitle = 'Service Application Proxies'
+        ServiceApplicationProxiesDescription = 'Service application proxies and connection status when exposed by the object model.'
+        ManagedAccountsTitle = 'Managed Accounts'
+        ManagedAccountsDescription = 'Managed accounts. Password values are never exported.'
+        AamTitle = 'Alternate Access Mappings'
+        AamDescription = 'Public and internal URLs configured for SharePoint zones.'
+        FarmSolutionsTitle = 'Farm Solutions'
+        FarmSolutionsDescription = 'Farm solution deployment status and last deployment result.'
+        BlockedFileTypesTitle = 'Blocked File Types'
+        BlockedFileTypesDescription = 'Blocked file extensions configured per web application.'
+        UsageLoggingTitle = 'Usage And Diagnostic Logging'
+        UsageLoggingDescription = 'ULS diagnostic and usage logging configuration.'
+        OutgoingEmailTitle = 'Outgoing Email'
+        OutgoingEmailDescription = 'Farm/web application outgoing mail indicators. Values may differ per web application.'
+        SiteCollectionsTitle = 'Site Collections'
+        SiteCollectionsDescription = 'Site collection inventory. This can be slow on large farms.'
+        TimerJobsTitle = 'Timer Jobs'
+        TimerJobsDescription = 'Timer job schedule and disablement status.'
+        HealthAnalyzerTitle = 'Health Analyzer Rules'
+        HealthAnalyzerDescription = 'Health Analyzer rules and configured severity.'
+        SearchTopologyTitle = 'Search Topology'
+        SearchTopologyDescription = 'Active enterprise search topology components.'
+        InstalledFeaturesTitle = 'Installed Features'
+        InstalledFeaturesDescription = 'Installed SharePoint feature definitions. This is a definition inventory, not activation state.'
+        IisAppPoolsTitle = 'IIS Application Pools'
+        IisAppPoolsDescription = 'Local IIS application pools on the server where the script ran.'
+        IisSitesTitle = 'IIS Sites'
+        IisSitesDescription = 'Local IIS sites and bindings on the server where the script ran.'
+        IisDetailsTitle = 'IIS Details'
+        SkippedBy = 'Skipped by'
     }
     'tr-TR' = @{
         ReportTitle = 'SharePoint Farm Tanılama Raporu'
@@ -155,7 +189,41 @@ $script:Translations = @{
         ContentDbTitle = 'İçerik Veritabanları'
         ContentDbDescription = 'İçerik veritabanı boyutları, site sayıları ve yükseltme göstergeleri.'
         LocalHealthTitle = 'Yerel Sunucu Sağlığı'
-        LocalHealthDescription = 'Betiğin çalıştığı sunucuda işletim sistemi, bellek, işlemci, PowerShell sürümü ve tüm bağlı mantıksal disk alanı analizi.'
+        LocalHealthDescription = 'Betiğin çalıştığı sunucuda işletim sistemi, bellek, işlemci, PowerShell sürümü ve yerel sabit disk alanı analizi.'
+        AllDatabasesTitle = 'Tüm SharePoint Veritabanları'
+        AllDatabasesDescription = 'Yapılandırma veritabanına kayıtlı tüm SharePoint veritabanları.'
+        ServiceApplicationsTitle = 'Servis Uygulamaları'
+        ServiceApplicationsDescription = 'Farm üzerinde sağlanan servis uygulamaları.'
+        ServiceApplicationProxiesTitle = 'Servis Uygulaması Proxyleri'
+        ServiceApplicationProxiesDescription = 'Servis uygulaması proxyleri ve nesne modeli tarafından sağlanıyorsa bağlantı durumu.'
+        ManagedAccountsTitle = 'Yönetilen Hesaplar'
+        ManagedAccountsDescription = 'Yönetilen hesaplar. Parola değerleri hiçbir zaman dışa aktarılmaz.'
+        AamTitle = 'Alternatif Erişim Eşlemeleri'
+        AamDescription = 'SharePoint bölgeleri için yapılandırılmış genel ve iç URL adresleri.'
+        FarmSolutionsTitle = 'Farm Çözümleri'
+        FarmSolutionsDescription = 'Farm çözüm dağıtım durumu ve son dağıtım sonucu.'
+        BlockedFileTypesTitle = 'Engellenen Dosya Türleri'
+        BlockedFileTypesDescription = 'Web uygulaması başına yapılandırılmış engellenen dosya uzantıları.'
+        UsageLoggingTitle = 'Kullanım ve Tanılama Günlüğü'
+        UsageLoggingDescription = 'ULS tanılama ve kullanım günlüğü yapılandırması.'
+        OutgoingEmailTitle = 'Giden E-posta'
+        OutgoingEmailDescription = 'Farm/web uygulaması giden posta göstergeleri. Değerler web uygulamasına göre değişebilir.'
+        SiteCollectionsTitle = 'Site Koleksiyonları'
+        SiteCollectionsDescription = 'Site koleksiyonu envanteri. Büyük farmlarda yavaş olabilir.'
+        TimerJobsTitle = 'Zamanlayıcı İşleri'
+        TimerJobsDescription = 'Zamanlayıcı işi zamanlaması ve devre dışı bırakma durumu.'
+        HealthAnalyzerTitle = 'Sağlık Çözümleyici Kuralları'
+        HealthAnalyzerDescription = 'Sağlık Çözümleyici kuralları ve yapılandırılmış önem derecesi.'
+        SearchTopologyTitle = 'Arama Topolojisi'
+        SearchTopologyDescription = 'Etkin kurumsal arama topolojisi bileşenleri.'
+        InstalledFeaturesTitle = 'Yüklü Özellikler'
+        InstalledFeaturesDescription = 'Yüklü SharePoint özellik tanımları. Bu bir tanım envanteridir, etkinleştirme durumu değildir.'
+        IisAppPoolsTitle = 'IIS Uygulama Havuzları'
+        IisAppPoolsDescription = 'Betiğin çalıştığı sunucudaki yerel IIS uygulama havuzları.'
+        IisSitesTitle = 'IIS Siteleri'
+        IisSitesDescription = 'Betiğin çalıştığı sunucudaki yerel IIS siteleri ve bağlamaları.'
+        IisDetailsTitle = 'IIS Ayrıntıları'
+        SkippedBy = 'Atlandı'
     }
 }
 
@@ -697,7 +765,7 @@ function Get-SPReportLocalServerHealth {
     $os = Get-CimInstance -ClassName Win32_OperatingSystem
     $computer = Get-CimInstance -ClassName Win32_ComputerSystem
     $processor = Get-CimInstance -ClassName Win32_Processor | Select-Object -First 1
-    $disks = Get-CimInstance -ClassName Win32_LogicalDisk | Sort-Object DeviceID
+    $disks = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" | Sort-Object DeviceID
 
     foreach ($disk in $disks) {
         $freePercent = if ($disk.Size -gt 0) { [math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2) } else { 0 }
@@ -722,6 +790,7 @@ function Get-SPReportLocalServerHealth {
 }
 
 function Get-SPReportFarmServerUpdateStatus {
+    $farmBuild = (Get-SPFarm).BuildVersion.ToString()
     $servers = @(Get-SPServer | Sort-Object Name)
     $farmMaxVersionNumber = 0
     foreach ($server in $servers) {
@@ -729,11 +798,11 @@ function Get-SPReportFarmServerUpdateStatus {
         if ($versionNumber -gt $farmMaxVersionNumber) { $farmMaxVersionNumber = $versionNumber }
     }
 
-    $farmMaxVersion = ($servers | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'Version') } -Descending | Select-Object -First 1 | ForEach-Object { Get-ObjectValue -InputObject $_ -PropertyName 'Version' })
-    $microsoftLatest = Get-SPReportMicrosoftLatestSharePointUpdate -InstalledBuild $farmMaxVersion
+    $microsoftLatest = Get-SPReportMicrosoftLatestSharePointUpdate -InstalledBuild $farmBuild
     $effectiveLatestBuild = if ($LatestKnownSharePointBuild) { $LatestKnownSharePointBuild } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'LatestBuild' }
     $effectiveLatestUpdateName = if ($LatestKnownSharePointUpdateName) { $LatestKnownSharePointUpdateName } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'UpdateName' }
     $latestKnownVersionNumber = ConvertTo-VersionNumber $effectiveLatestBuild
+    $farmBuildVersionNumber = ConvertTo-VersionNumber $farmBuild
 
     foreach ($server in $servers) {
         $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
@@ -750,7 +819,7 @@ function Get-SPReportFarmServerUpdateStatus {
         if ($needsUpgrade) { $farmRelativeStatus = 'Needs SharePoint upgrade' }
 
         if ($latestKnownVersionNumber -gt 0) {
-            if ($serverVersionNumber -ge $latestKnownVersionNumber) { $latestKnownStatus = 'At or above latest known build' }
+            if ($farmBuildVersionNumber -ge $latestKnownVersionNumber) { $latestKnownStatus = 'At or above latest known build' }
             else { $latestKnownStatus = 'Below latest known build' }
         }
 
@@ -770,6 +839,7 @@ function Get-SPReportFarmServerUpdateStatus {
             Server                  = $serverName
             Role                    = Get-ObjectValue -InputObject $server -PropertyName 'Role'
             Status                  = Get-ObjectValue -InputObject $server -PropertyName 'Status'
+            FarmBuild               = $farmBuild
             SharePointBuild         = $serverVersion
             NeedsUpgrade            = $needsUpgrade
             FarmRelativeStatus      = $farmRelativeStatus
@@ -791,9 +861,8 @@ function Get-SPReportFarmServerUpdateStatus {
 }
 
 function Get-SPReportCachedSharePointUpdateHistory {
-    $servers = @(Get-SPServer | Sort-Object Name)
-    $farmMaxVersion = ($servers | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'Version') } -Descending | Select-Object -First 1 | ForEach-Object { Get-ObjectValue -InputObject $_ -PropertyName 'Version' })
-    $product = Get-SPProductUpdateSectionName $farmMaxVersion
+    $farmBuild = (Get-SPFarm).BuildVersion.ToString()
+    $product = Get-SPProductUpdateSectionName $farmBuild
     if (-not $product) { return @() }
 
     $cache = Read-SPReportUpdateCache
@@ -1284,64 +1353,64 @@ try {
     Add-ReportSection -Title (Get-ReportText -Key 'FarmVersionTitle') -Description (Get-ReportText -Key 'FarmVersionDescription') -Data $version -Columns @('Product', 'BuildVersion', 'FarmId', 'Configuration', 'Status') -Status (Get-SectionStatus -Data $version)
     Add-ReportSection -Title (Get-ReportText -Key 'FarmOverviewTitle') -Description (Get-ReportText -Key 'FarmOverviewDescription') -Data $farmOverview -Columns @('FarmId', 'Status', 'BuildVersion', 'ConfigurationDatabase', 'ConfigurationDatabaseSize', 'TimerServiceAccount', 'CentralAdministration') -Status (Get-SectionStatus -Data $farmOverview)
     Add-ReportSection -Title (Get-ReportText -Key 'ServersTitle') -Description (Get-ReportText -Key 'ServersDescription') -Data $servers -Columns @('Name', 'Role', 'ServerRole', 'CompliantWithMinRole', 'Address', 'Status', 'NeedsUpgrade', 'Version') -Status (Get-SectionStatus -Data $servers)
-    Add-ReportSection -Title (Get-ReportText -Key 'FarmServerUpdatesTitle') -Description (Get-ReportText -Key 'FarmServerUpdatesDescription') -Data $farmServerUpdateStatus -Columns @('Server', 'Role', 'Status', 'SharePointBuild', 'NeedsUpgrade', 'FarmRelativeStatus', 'LatestKnownBuild', 'LatestKnownUpdateName', 'LatestKnownKB', 'LatestKnownReleaseDate', 'LatestKnownStatus', 'MicrosoftLookupProduct', 'MicrosoftLookupStatus', 'MicrosoftLookupSource', 'CacheLastRefresh', 'CachedUpdateCount', 'LatestInstalledUpdate', 'LatestSecurityUpdate', 'UpdateQueryStatus') -Status (Get-SectionStatus -Data $farmServerUpdateStatus)
+    Add-ReportSection -Title (Get-ReportText -Key 'FarmServerUpdatesTitle') -Description (Get-ReportText -Key 'FarmServerUpdatesDescription') -Data $farmServerUpdateStatus -Columns @('Server', 'Role', 'Status', 'FarmBuild', 'SharePointBuild', 'NeedsUpgrade', 'FarmRelativeStatus', 'LatestKnownBuild', 'LatestKnownUpdateName', 'LatestKnownKB', 'LatestKnownReleaseDate', 'LatestKnownStatus', 'MicrosoftLookupProduct', 'MicrosoftLookupStatus', 'MicrosoftLookupSource', 'CacheLastRefresh', 'CachedUpdateCount', 'LatestInstalledUpdate', 'LatestSecurityUpdate', 'UpdateQueryStatus') -Status (Get-SectionStatus -Data $farmServerUpdateStatus)
     Add-ReportSection -Title (Get-ReportText -Key 'UpdateCacheHistoryTitle') -Description (Get-ReportText -Key 'UpdateCacheHistoryDescription') -Data $cachedUpdateHistory -Columns @('Product', 'LatestBuild', 'UpdateName', 'KB', 'ReleaseDate', 'CacheFetchedAt', 'CacheSource') -Status (Get-SectionStatus -Data $cachedUpdateHistory)
     Add-ReportSection -Title (Get-ReportText -Key 'ServicesTitle') -Description (Get-ReportText -Key 'ServicesDescription') -Data $servicesOnServers -Columns @('Server', 'Service', 'Status', 'ServiceType', 'Id') -Status (Get-SectionStatus -Data $servicesOnServers)
     Add-ReportSection -Title (Get-ReportText -Key 'WebAppsTitle') -Description (Get-ReportText -Key 'WebAppsDescription') -Data $webApplications -Columns @('Name', 'Url', 'ApplicationPool', 'ApplicationPoolAccount', 'ClaimsAuthentication', 'AllowAnonymous', 'AuthenticationProvider', 'ContentDatabases', 'MaximumFileSizeMB', 'TimeZone', 'IsCentralAdministration') -Status (Get-SectionStatus -Data $webApplications)
     Add-ReportSection -Title (Get-ReportText -Key 'ContentDbTitle') -Description (Get-ReportText -Key 'ContentDbDescription') -Data $contentDatabases -Columns @('Name', 'WebApplication', 'Server', 'Status', 'CurrentSiteCount', 'WarningSiteCount', 'MaximumSiteCount', 'DiskSizeRequired', 'NeedsUpgrade', 'Id') -Status (Get-SectionStatus -Data $contentDatabases)
 
     Add-SectionFromCollector -Title (Get-ReportText -Key 'LocalHealthTitle') -Description (Get-ReportText -Key 'LocalHealthDescription') -Collector { Get-SPReportLocalServerHealth } -Columns @('Server', 'OperatingSystem', 'OSVersion', 'LastBootTime', 'PowerShellVersion', 'TotalMemory', 'Processor', 'Drive', 'DriveType', 'VolumeName', 'FileSystem', 'DriveSize', 'DriveFree', 'DriveFreePercent', 'SpaceStatus')
-    Add-SectionFromCollector -Title 'All SharePoint Databases' -Description 'All SharePoint databases registered in the configuration database.' -Collector { Get-SPReportDatabases } -Columns @('Name', 'TypeName', 'Server', 'Status', 'DiskSizeRequired', 'NeedsUpgrade', 'Id')
-    Add-SectionFromCollector -Title 'Service Applications' -Description 'Service applications provisioned in the farm.' -Collector { Get-SPReportServiceApplications } -Columns @('Name', 'TypeName', 'Status', 'ApplicationPool', 'Id')
-    Add-SectionFromCollector -Title 'Service Application Proxies' -Description 'Service application proxies and connection status when exposed by the object model.' -Collector { Get-SPReportServiceApplicationProxies } -Columns @('Name', 'TypeName', 'Status', 'IsConnected', 'ServiceApplication', 'Id')
-    Add-SectionFromCollector -Title 'Managed Accounts' -Description 'Managed accounts. Password values are never exported.' -Collector { Get-SPReportManagedAccounts } -Columns @('UserName', 'DisplayName', 'AutomaticChangeEnabled', 'DaysBeforeExpiryToWarn', 'PasswordLastChanged')
-    Add-SectionFromCollector -Title 'Alternate Access Mappings' -Description 'Public and internal URLs configured for SharePoint zones.' -Collector { Get-SPReportAam } -Columns @('WebApplication', 'Zone', 'PublicUrl', 'IncomingUrl', 'UriScheme')
-    Add-SectionFromCollector -Title 'Farm Solutions' -Description 'Farm solution deployment status and last deployment result.' -Collector { Get-SPReportSolutions } -Columns @('Name', 'Deployed', 'ContainsGlobalAssembly', 'ContainsCasPolicy', 'DeploymentState', 'LastOperationResult', 'LastOperationEndTime')
-    Add-SectionFromCollector -Title 'Blocked File Types' -Description 'Blocked file extensions configured per web application.' -Collector { Get-SPReportBlockedFileTypes } -Columns @('WebApplication', 'Extension')
-    Add-SectionFromCollector -Title 'Usage And Diagnostic Logging' -Description 'ULS diagnostic and usage logging configuration.' -Collector { Get-SPReportUsageAndLogging } -Columns @('LogLocation', 'LogDiskSpaceUsageGB', 'LogMaxDiskSpaceUsageEnabled', 'DaysToKeepLogs', 'UsageServiceStatus', 'UsageLogLocation', 'UsageLogMaxSpaceGB', 'UsageLogCutTime')
-    Add-SectionFromCollector -Title 'Outgoing Email' -Description 'Farm/web application outgoing mail indicators. Values may differ per web application.' -Collector { Get-SPReportOutgoingEmail } -Columns @('FarmOutboundMailService', 'SampleWebApplication', 'OutboundMailServer', 'FromAddress', 'ReplyToAddress')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'AllDatabasesTitle') -Description (Get-ReportText -Key 'AllDatabasesDescription') -Collector { Get-SPReportDatabases } -Columns @('Name', 'TypeName', 'Server', 'Status', 'DiskSizeRequired', 'NeedsUpgrade', 'Id')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'ServiceApplicationsTitle') -Description (Get-ReportText -Key 'ServiceApplicationsDescription') -Collector { Get-SPReportServiceApplications } -Columns @('Name', 'TypeName', 'Status', 'ApplicationPool', 'Id')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'ServiceApplicationProxiesTitle') -Description (Get-ReportText -Key 'ServiceApplicationProxiesDescription') -Collector { Get-SPReportServiceApplicationProxies } -Columns @('Name', 'TypeName', 'Status', 'IsConnected', 'ServiceApplication', 'Id')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'ManagedAccountsTitle') -Description (Get-ReportText -Key 'ManagedAccountsDescription') -Collector { Get-SPReportManagedAccounts } -Columns @('UserName', 'DisplayName', 'AutomaticChangeEnabled', 'DaysBeforeExpiryToWarn', 'PasswordLastChanged')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'AamTitle') -Description (Get-ReportText -Key 'AamDescription') -Collector { Get-SPReportAam } -Columns @('WebApplication', 'Zone', 'PublicUrl', 'IncomingUrl', 'UriScheme')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'FarmSolutionsTitle') -Description (Get-ReportText -Key 'FarmSolutionsDescription') -Collector { Get-SPReportSolutions } -Columns @('Name', 'Deployed', 'ContainsGlobalAssembly', 'ContainsCasPolicy', 'DeploymentState', 'LastOperationResult', 'LastOperationEndTime')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'BlockedFileTypesTitle') -Description (Get-ReportText -Key 'BlockedFileTypesDescription') -Collector { Get-SPReportBlockedFileTypes } -Columns @('WebApplication', 'Extension')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'UsageLoggingTitle') -Description (Get-ReportText -Key 'UsageLoggingDescription') -Collector { Get-SPReportUsageAndLogging } -Columns @('LogLocation', 'LogDiskSpaceUsageGB', 'LogMaxDiskSpaceUsageEnabled', 'DaysToKeepLogs', 'UsageServiceStatus', 'UsageLogLocation', 'UsageLogMaxSpaceGB', 'UsageLogCutTime')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'OutgoingEmailTitle') -Description (Get-ReportText -Key 'OutgoingEmailDescription') -Collector { Get-SPReportOutgoingEmail } -Columns @('FarmOutboundMailService', 'SampleWebApplication', 'OutboundMailServer', 'FromAddress', 'ReplyToAddress')
 
     if (-not $SkipSiteCollections) {
-        Add-SectionFromCollector -Title 'Site Collections' -Description 'Site collection inventory. This can be slow on large farms.' -Collector { Get-SPReportSiteCollections } -Columns @('Url', 'Owner', 'SecondaryOwner', 'ContentDatabase', 'Template', 'CompatibilityLevel', 'StorageUsed', 'StorageQuota', 'LastContentModifiedDate', 'LockState')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'SiteCollectionsTitle') -Description (Get-ReportText -Key 'SiteCollectionsDescription') -Collector { Get-SPReportSiteCollections } -Columns @('Url', 'Owner', 'SecondaryOwner', 'ContentDatabase', 'Template', 'CompatibilityLevel', 'StorageUsed', 'StorageQuota', 'LastContentModifiedDate', 'LockState')
     }
     else {
-        Add-ReportSection -Title 'Site Collections' -Description 'Skipped by -SkipSiteCollections.' -Data @() -Columns @('Url', 'Owner', 'ContentDatabase') -Status 'Unknown'
+        Add-ReportSection -Title (Get-ReportText -Key 'SiteCollectionsTitle') -Description ('{0} -SkipSiteCollections.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('Url', 'Owner', 'ContentDatabase') -Status 'Unknown'
     }
 
     if (-not $SkipTimerJobs) {
-        Add-SectionFromCollector -Title 'Timer Jobs' -Description 'Timer job schedule and disablement status.' -Collector { Get-SPReportTimerJobs } -Columns @('Name', 'TypeName', 'Schedule', 'IsDisabled', 'LastRunTime', 'WebApplication', 'Server')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'TimerJobsTitle') -Description (Get-ReportText -Key 'TimerJobsDescription') -Collector { Get-SPReportTimerJobs } -Columns @('Name', 'TypeName', 'Schedule', 'IsDisabled', 'LastRunTime', 'WebApplication', 'Server')
     }
     else {
-        Add-ReportSection -Title 'Timer Jobs' -Description 'Skipped by -SkipTimerJobs.' -Data @() -Columns @('Name', 'Schedule', 'IsDisabled') -Status 'Unknown'
+        Add-ReportSection -Title (Get-ReportText -Key 'TimerJobsTitle') -Description ('{0} -SkipTimerJobs.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('Name', 'Schedule', 'IsDisabled') -Status 'Unknown'
     }
 
     if (-not $SkipHealthAnalyzer) {
-        Add-SectionFromCollector -Title 'Health Analyzer Rules' -Description 'Health Analyzer rules and configured severity.' -Collector { Get-SPReportHealthAnalyzer } -Columns @('Category', 'Summary', 'Severity', 'Enabled', 'Schedule', 'RepairAutomatically')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'HealthAnalyzerTitle') -Description (Get-ReportText -Key 'HealthAnalyzerDescription') -Collector { Get-SPReportHealthAnalyzer } -Columns @('Category', 'Summary', 'Severity', 'Enabled', 'Schedule', 'RepairAutomatically')
     }
     else {
-        Add-ReportSection -Title 'Health Analyzer Rules' -Description 'Skipped by -SkipHealthAnalyzer.' -Data @() -Columns @('Category', 'Summary', 'Severity') -Status 'Unknown'
+        Add-ReportSection -Title (Get-ReportText -Key 'HealthAnalyzerTitle') -Description ('{0} -SkipHealthAnalyzer.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('Category', 'Summary', 'Severity') -Status 'Unknown'
     }
 
     if (-not $SkipSearchTopology) {
-        Add-SectionFromCollector -Title 'Search Topology' -Description 'Active enterprise search topology components.' -Collector { Get-SPReportSearchTopology } -Columns @('SearchApplication', 'ComponentName', 'ComponentType', 'ServerName', 'RootDirectory', 'IndexPartition')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'SearchTopologyTitle') -Description (Get-ReportText -Key 'SearchTopologyDescription') -Collector { Get-SPReportSearchTopology } -Columns @('SearchApplication', 'ComponentName', 'ComponentType', 'ServerName', 'RootDirectory', 'IndexPartition')
     }
     else {
-        Add-ReportSection -Title 'Search Topology' -Description 'Skipped by -SkipSearchTopology.' -Data @() -Columns @('SearchApplication', 'ComponentName', 'ComponentType', 'ServerName') -Status 'Unknown'
+        Add-ReportSection -Title (Get-ReportText -Key 'SearchTopologyTitle') -Description ('{0} -SkipSearchTopology.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('SearchApplication', 'ComponentName', 'ComponentType', 'ServerName') -Status 'Unknown'
     }
 
     if (-not $SkipFeatureInventory) {
-        Add-SectionFromCollector -Title 'Installed Features' -Description 'Installed SharePoint feature definitions. This is a definition inventory, not activation state.' -Collector { Get-SPReportFeatures } -Columns @('DisplayName', 'Scope', 'Id', 'CompatibilityLevel', 'Version')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'InstalledFeaturesTitle') -Description (Get-ReportText -Key 'InstalledFeaturesDescription') -Collector { Get-SPReportFeatures } -Columns @('DisplayName', 'Scope', 'Id', 'CompatibilityLevel', 'Version')
     }
     else {
-        Add-ReportSection -Title 'Installed Features' -Description 'Skipped by -SkipFeatureInventory.' -Data @() -Columns @('DisplayName', 'Scope', 'Id') -Status 'Unknown'
+        Add-ReportSection -Title (Get-ReportText -Key 'InstalledFeaturesTitle') -Description ('{0} -SkipFeatureInventory.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('DisplayName', 'Scope', 'Id') -Status 'Unknown'
     }
 
     if (-not $SkipIisDetails) {
-        Add-SectionFromCollector -Title 'IIS Application Pools' -Description 'Local IIS application pools on the server where the script ran.' -Collector { Get-SPReportIisApplicationPools } -Columns @('Name', 'State', 'Runtime', 'PipelineMode', 'IdentityType', 'UserName', 'Enable32Bit')
-        Add-SectionFromCollector -Title 'IIS Sites' -Description 'Local IIS sites and bindings on the server where the script ran.' -Collector { Get-SPReportIisSites } -Columns @('Name', 'Id', 'State', 'PhysicalPath', 'Bindings')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'IisAppPoolsTitle') -Description (Get-ReportText -Key 'IisAppPoolsDescription') -Collector { Get-SPReportIisApplicationPools } -Columns @('Name', 'State', 'Runtime', 'PipelineMode', 'IdentityType', 'UserName', 'Enable32Bit')
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'IisSitesTitle') -Description (Get-ReportText -Key 'IisSitesDescription') -Collector { Get-SPReportIisSites } -Columns @('Name', 'Id', 'State', 'PhysicalPath', 'Bindings')
     }
     else {
-        Add-ReportSection -Title 'IIS Details' -Description 'Skipped by -SkipIisDetails.' -Data @() -Columns @('Name', 'State') -Status 'Unknown'
+        Add-ReportSection -Title (Get-ReportText -Key 'IisDetailsTitle') -Description ('{0} -SkipIisDetails.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('Name', 'State') -Status 'Unknown'
     }
 
     $html = Convert-ReportToHtml -Title $ReportTitle -Sections @($script:ReportSections) -Summary @($script:SummaryItems)
