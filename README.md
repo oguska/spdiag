@@ -19,6 +19,40 @@ By default, the script scans all report sections. Skip expensive sections only w
   -SkipFeatureInventory
 ```
 
+Generate a Turkish report:
+
+```powershell
+.\New-SPFarmReport.ps1 -Language tr-TR -OutputPath C:\Temp\SPFarmReport_TR.html
+```
+
+Compare farm server builds to a known latest SharePoint build that you provide:
+
+```powershell
+.\New-SPFarmReport.ps1 `
+  -LatestKnownSharePointBuild 16.0.10417.20018 `
+  -LatestKnownSharePointUpdateName "Example CU/Security Update Name"
+```
+
+By default, the script tries to fetch the latest SharePoint update metadata from Microsoft when internet access is available. Disable this for isolated/offline farms:
+
+```powershell
+.\New-SPFarmReport.ps1 -SkipMicrosoftUpdateCheck
+```
+
+Microsoft update metadata is cached locally after a successful lookup. The cache stores previous CU/security update rows for the detected SharePoint product and is reused when Microsoft access is unavailable or skipped:
+
+```powershell
+.\New-SPFarmReport.ps1 `
+  -UpdateCachePath C:\ProgramData\SPFarmReport\SharePointUpdatesCache.json `
+  -UpdateCacheMaxAgeDays 30
+```
+
+Force a fresh Microsoft lookup even when the cache is still fresh:
+
+```powershell
+.\New-SPFarmReport.ps1 -ForceMicrosoftUpdateRefresh
+```
+
 ## Notes
 
 - The script loads `Microsoft.SharePoint.PowerShell` automatically when available.
@@ -27,3 +61,9 @@ By default, the script scans all report sections. Skip expensive sections only w
 - IIS sections report only the local server where the script is executed.
 - Full scan is the default. Use `-SkipSiteCollections`, `-SkipTimerJobs`, `-SkipHealthAnalyzer`, `-SkipSearchTopology`, `-SkipFeatureInventory`, or `-SkipIisDetails` to reduce runtime on very large farms.
 - Older `-Include...` switches are still accepted but no longer required because these sections are included by default.
+- `Farm Server Update Status` compares server builds against the highest SharePoint build currently present in the farm and, when Microsoft access is available, against the latest update listed on Microsoft Learn.
+- Use `-LatestKnownSharePointBuild` and `-LatestKnownSharePointUpdateName` to override or provide latest update details manually.
+- Use `-SkipMicrosoftUpdateCheck` to avoid outbound Microsoft access attempts.
+- Default update cache path is `C:\ProgramData\SPFarmReport\SharePointUpdatesCache.json`.
+- The `Cached SharePoint Update History` section lists cached previous CU/security update rows for the detected SharePoint product.
+- Supported report languages are `en-US` and `tr-TR`.

@@ -58,7 +58,30 @@ param(
     [switch]$SkipFeatureInventory,
 
     [Parameter()]
-    [switch]$SkipIisDetails
+    [switch]$SkipIisDetails,
+
+    [Parameter()]
+    [ValidateSet('en-US', 'tr-TR')]
+    [string]$Language = 'en-US',
+
+    [Parameter()]
+    [string]$LatestKnownSharePointBuild,
+
+    [Parameter()]
+    [string]$LatestKnownSharePointUpdateName,
+
+    [Parameter()]
+    [switch]$SkipMicrosoftUpdateCheck,
+
+    [Parameter()]
+    [string]$UpdateCachePath = (Join-Path -Path $env:ProgramData -ChildPath 'SPFarmReport\SharePointUpdatesCache.json'),
+
+    [Parameter()]
+    [ValidateRange(1, 365)]
+    [int]$UpdateCacheMaxAgeDays = 30,
+
+    [Parameter()]
+    [switch]$ForceMicrosoftUpdateRefresh
 )
 
 Set-StrictMode -Version 2.0
@@ -66,6 +89,92 @@ $ErrorActionPreference = 'Stop'
 
 $script:ReportSections = New-Object System.Collections.ArrayList
 $script:SummaryItems = New-Object System.Collections.ArrayList
+
+$script:Translations = @{
+    'en-US' = @{
+        ReportTitle = 'SharePoint Farm Diagnostic Report'
+        Generated = 'Generated'
+        Server = 'Server'
+        User = 'User'
+        ExpandAll = 'Expand all'
+        CollapseAll = 'Collapse all'
+        Items = 'item(s)'
+        NoData = 'No data returned.'
+        Product = 'Product'
+        Build = 'Build'
+        Servers = 'Servers'
+        WebApplications = 'Web Applications'
+        ContentDatabases = 'Content Databases'
+        FarmVersionTitle = 'Farm Version'
+        FarmVersionDescription = 'Detected farm version and configuration database.'
+        FarmOverviewTitle = 'Farm Overview'
+        FarmOverviewDescription = 'Core farm identity, status, timer service identity, and Central Administration URL.'
+        ServersTitle = 'Servers'
+        ServersDescription = 'Servers joined to the farm and version/role indicators.'
+        FarmServerUpdatesTitle = 'Farm Server Update Status'
+        FarmServerUpdatesDescription = 'SharePoint build, upgrade state, and latest installed Windows update indicators per farm server. If Microsoft access is available, the latest SharePoint update is checked automatically.'
+        UpdateCacheHistoryTitle = 'Cached SharePoint Update History'
+        UpdateCacheHistoryDescription = 'Previously cached Microsoft SharePoint CU/security update rows for the detected product. This cache is used when Microsoft access is unavailable or skipped.'
+        ServicesTitle = 'Services On Servers'
+        ServicesDescription = 'SharePoint service instances and their status on farm servers.'
+        WebAppsTitle = 'Web Applications'
+        WebAppsDescription = 'Web application configuration, authentication, application pools, and content database counts.'
+        ContentDbTitle = 'Content Databases'
+        ContentDbDescription = 'Content database sizing, site counts, and upgrade indicators.'
+        LocalHealthTitle = 'Local Server Health'
+        LocalHealthDescription = 'Operating system, memory, processor, PowerShell version, and all attached logical disk space analysis on the server where the script ran.'
+    }
+    'tr-TR' = @{
+        ReportTitle = 'SharePoint Farm Tanılama Raporu'
+        Generated = 'Oluşturulma'
+        Server = 'Sunucu'
+        User = 'Kullanıcı'
+        ExpandAll = 'Tümünü genişlet'
+        CollapseAll = 'Tümünü daralt'
+        Items = 'öğe'
+        NoData = 'Veri dönmedi.'
+        Product = 'Ürün'
+        Build = 'Derleme'
+        Servers = 'Sunucular'
+        WebApplications = 'Web Uygulamaları'
+        ContentDatabases = 'İçerik Veritabanları'
+        FarmVersionTitle = 'Farm Sürümü'
+        FarmVersionDescription = 'Algılanan farm sürümü ve yapılandırma veritabanı.'
+        FarmOverviewTitle = 'Farm Özeti'
+        FarmOverviewDescription = 'Temel farm kimliği, durumu, zamanlayıcı servis hesabı ve Central Administration URL bilgisi.'
+        ServersTitle = 'Sunucular'
+        ServersDescription = 'Farma bağlı sunucular ve sürüm/rol göstergeleri.'
+        FarmServerUpdatesTitle = 'Farm Sunucu Güncelleme Durumu'
+        FarmServerUpdatesDescription = 'Farm sunucuları için SharePoint derlemesi, yükseltme durumu ve en son yüklü Windows güncelleme göstergeleri. Microsoft erişimi varsa en güncel SharePoint güncellemesi otomatik kontrol edilir.'
+        UpdateCacheHistoryTitle = 'Önbelleğe Alınmış SharePoint Güncelleme Geçmişi'
+        UpdateCacheHistoryDescription = 'Algılanan ürün için daha önce önbelleğe alınmış Microsoft SharePoint CU/güvenlik güncelleme satırları. Microsoft erişimi yoksa veya atlanırsa bu önbellek kullanılır.'
+        ServicesTitle = 'Sunuculardaki Servisler'
+        ServicesDescription = 'Farm sunucularındaki SharePoint servis örnekleri ve durumları.'
+        WebAppsTitle = 'Web Uygulamaları'
+        WebAppsDescription = 'Web uygulaması yapılandırması, kimlik doğrulama, uygulama havuzları ve içerik veritabanı sayıları.'
+        ContentDbTitle = 'İçerik Veritabanları'
+        ContentDbDescription = 'İçerik veritabanı boyutları, site sayıları ve yükseltme göstergeleri.'
+        LocalHealthTitle = 'Yerel Sunucu Sağlığı'
+        LocalHealthDescription = 'Betiğin çalıştığı sunucuda işletim sistemi, bellek, işlemci, PowerShell sürümü ve tüm bağlı mantıksal disk alanı analizi.'
+    }
+}
+
+function Get-ReportText {
+    param(
+        [string]$Key,
+        [string]$Default = $Key
+    )
+
+    if ($script:Translations.ContainsKey($Language) -and $script:Translations[$Language].ContainsKey($Key)) {
+        return $script:Translations[$Language][$Key]
+    }
+
+    if ($script:Translations['en-US'].ContainsKey($Key)) {
+        return $script:Translations['en-US'][$Key]
+    }
+
+    return $Default
+}
 
 function Add-SummaryItem {
     param(
@@ -112,6 +221,295 @@ function Format-ByteSize {
     if ($number -ge 1MB) { return ('{0:N2} MB' -f ($number / 1MB)) }
     if ($number -ge 1KB) { return ('{0:N2} KB' -f ($number / 1KB)) }
     return ('{0:N0} B' -f $number)
+}
+
+function ConvertTo-VersionNumber {
+    param([AllowNull()][object]$Value)
+
+    if ($null -eq $Value) { return 0 }
+    $digits = ([string]$Value) -replace '[^0-9]', ''
+    if (-not $digits) { return 0 }
+
+    $number = 0L
+    if ([long]::TryParse($digits, [ref]$number)) { return $number }
+    return 0
+}
+
+function Get-VersionParts {
+    param([AllowNull()][object]$Value)
+
+    $parts = @([string]$Value -split '\.' | ForEach-Object {
+        $number = 0
+        if ([int]::TryParse($_, [ref]$number)) { $number } else { 0 }
+    })
+
+    while ($parts.Count -lt 4) { $parts += 0 }
+    return $parts
+}
+
+function Get-SPProductUpdateSectionName {
+    param([AllowNull()][object]$BuildVersion)
+
+    $parts = Get-VersionParts $BuildVersion
+    if ($parts[0] -eq 15) { return 'SharePoint 2013' }
+    if ($parts[0] -ne 16) { return '' }
+
+    if ($parts[2] -ge 14000) { return 'SharePoint Server Subscription Edition' }
+    if ($parts[2] -ge 10000) { return 'SharePoint 2019' }
+    return 'SharePoint 2016'
+}
+
+function Get-LatestVersionFromText {
+    param([string]$Text)
+
+    $versions = @([regex]::Matches($Text, '\d+\.\d+\.\d+\.\d+') | ForEach-Object { $_.Value })
+    if ($versions.Count -eq 0) { return '' }
+    return ($versions | Sort-Object { ConvertTo-VersionNumber $_ } -Descending | Select-Object -First 1)
+}
+
+function Read-SPReportUpdateCache {
+    if (-not $UpdateCachePath) { return $null }
+    if (-not (Test-Path -LiteralPath $UpdateCachePath)) { return $null }
+
+    try {
+        $json = [System.IO.File]::ReadAllText($UpdateCachePath, [System.Text.Encoding]::UTF8)
+        if (-not $json) { return $null }
+        return ($json | ConvertFrom-Json)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Write-SPReportUpdateCache {
+    param(
+        [string]$Product,
+        [object[]]$Updates,
+        [string]$Source
+    )
+
+    if (-not $UpdateCachePath -or -not $Product -or (Get-ObjectCount $Updates) -eq 0) { return }
+
+    try {
+        $cache = Read-SPReportUpdateCache
+        $products = @{}
+        if ($cache -and (Test-ObjectProperty -InputObject $cache -PropertyName 'Products')) {
+            foreach ($property in $cache.Products.PSObject.Properties) {
+                $products[$property.Name] = $property.Value
+            }
+        }
+
+        $products[$Product] = [pscustomobject]@{
+            Product       = $Product
+            Source        = $Source
+            FetchedAt     = (Get-Date).ToString('o')
+            UpdateCount   = (Get-ObjectCount $Updates)
+            Updates       = @($Updates)
+        }
+
+        $cacheObject = [pscustomobject]@{
+            SchemaVersion = 1
+            CreatedBy     = 'New-SPFarmReport.ps1'
+            UpdatedAt     = (Get-Date).ToString('o')
+            Products      = [pscustomobject]$products
+        }
+
+        $cacheDirectory = Split-Path -Path $UpdateCachePath -Parent
+        if ($cacheDirectory -and -not (Test-Path -LiteralPath $cacheDirectory)) {
+            New-Item -Path $cacheDirectory -ItemType Directory -Force | Out-Null
+        }
+
+        [System.IO.File]::WriteAllText($UpdateCachePath, ($cacheObject | ConvertTo-Json -Depth 8), [System.Text.Encoding]::UTF8)
+    }
+    catch {
+        Write-Verbose ('Failed to write update cache: {0}' -f $_.Exception.Message)
+    }
+}
+
+function Get-SPReportCachedLatestUpdate {
+    param([string]$Product)
+
+    $cache = Read-SPReportUpdateCache
+    if (-not $cache -or -not (Test-ObjectProperty -InputObject $cache -PropertyName 'Products')) { return $null }
+    $productCache = Get-ObjectValue -InputObject $cache.Products -PropertyName $Product
+    if (-not $productCache) { return $null }
+
+    $updates = @(Get-ObjectValue -InputObject $productCache -PropertyName 'Updates')
+    if ($updates.Count -eq 0) { return $null }
+
+    $fetchedAtValue = Get-ObjectValue -InputObject $productCache -PropertyName 'FetchedAt'
+    $fetchedAt = [datetime]::MinValue
+    [void][datetime]::TryParse([string]$fetchedAtValue, [ref]$fetchedAt)
+    $ageDays = if ($fetchedAt -gt [datetime]::MinValue) { [math]::Round(((Get-Date) - $fetchedAt).TotalDays, 1) } else { '' }
+    $ageStatus = if ($ageDays -ne '' -and $ageDays -gt $UpdateCacheMaxAgeDays) { 'Stale' } else { 'Fresh' }
+    $latest = $updates | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'LatestBuild') } -Descending | Select-Object -First 1
+
+    return [pscustomobject]@{
+        Product        = $Product
+        LatestBuild    = Get-ObjectValue -InputObject $latest -PropertyName 'LatestBuild'
+        UpdateName     = Get-ObjectValue -InputObject $latest -PropertyName 'UpdateName'
+        KB             = Get-ObjectValue -InputObject $latest -PropertyName 'KB'
+        ReleaseDate    = Get-ObjectValue -InputObject $latest -PropertyName 'ReleaseDate'
+        Source         = ('Cache: {0}' -f $UpdateCachePath)
+        LookupStatus   = ('Using cached Microsoft update data ({0}, age {1} day(s))' -f $ageStatus, $ageDays)
+        CacheLastRefresh = $fetchedAtValue
+        CachedUpdateCount = Get-ObjectValue -InputObject $productCache -PropertyName 'UpdateCount'
+    }
+}
+
+function Get-SPReportUpdatesFromMicrosoftContent {
+    param(
+        [string]$Content,
+        [string]$Product
+    )
+
+    $escapedProduct = [regex]::Escape($Product)
+    $sectionMatch = [regex]::Match($Content, "(?is)##\s+$escapedProduct\s+update history(.*?)(\r?\n##\s+|$)")
+    if (-not $sectionMatch.Success) { return @() }
+
+    $updates = New-Object System.Collections.ArrayList
+    $lines = @($sectionMatch.Groups[1].Value -split "\r?\n")
+    foreach ($line in $lines) {
+        if ($line -notmatch '^\|') { continue }
+        if ($line -match '^\|\s*-') { continue }
+        if ($line -match 'Package Name|KB Number|Version|Release Date') { continue }
+
+        $columns = @($line.Trim('|') -split '\|')
+        if ($columns.Count -lt 4) { continue }
+
+        $updateName = (($columns[0] -replace '<[^>]+>', '') -replace '\s+', ' ').Trim()
+        $kb = (@([regex]::Matches($columns[1], 'KB\s*\d+') | ForEach-Object { ($_.Value -replace '\s+', ' ') }) -join ', ')
+        $latestBuild = Get-LatestVersionFromText $columns[2]
+        $releaseDate = (($columns[3] -replace '<[^>]+>', '') -replace '\s+', ' ').Trim()
+
+        if ($latestBuild) {
+            [void]$updates.Add([pscustomobject]@{
+                Product     = $Product
+                LatestBuild = $latestBuild
+                UpdateName  = $updateName
+                KB          = $kb
+                ReleaseDate = $releaseDate
+            })
+        }
+    }
+
+    return @($updates)
+}
+
+function Get-SPReportMicrosoftLatestSharePointUpdate {
+    param([AllowNull()][object]$InstalledBuild)
+
+    $product = Get-SPProductUpdateSectionName $InstalledBuild
+
+    if ($SkipMicrosoftUpdateCheck) {
+        $cached = Get-SPReportCachedLatestUpdate -Product $product
+        if ($cached) { return $cached }
+
+        return [pscustomobject]@{
+            Product        = $product
+            LatestBuild    = $LatestKnownSharePointBuild
+            UpdateName     = $LatestKnownSharePointUpdateName
+            KB             = ''
+            ReleaseDate    = ''
+            Source         = 'Manual/Skipped Microsoft check'
+            LookupStatus   = 'Skipped by -SkipMicrosoftUpdateCheck'
+            CacheLastRefresh = ''
+            CachedUpdateCount = 0
+        }
+    }
+
+    if (-not $product) {
+        return [pscustomobject]@{
+            Product        = ''
+            LatestBuild    = $LatestKnownSharePointBuild
+            UpdateName     = $LatestKnownSharePointUpdateName
+            KB             = ''
+            ReleaseDate    = ''
+            Source         = 'Manual/Fallback'
+            LookupStatus   = 'Could not infer SharePoint product from build.'
+            CacheLastRefresh = ''
+            CachedUpdateCount = 0
+        }
+    }
+
+    $cachedBeforeRefresh = Get-SPReportCachedLatestUpdate -Product $product
+    if ($cachedBeforeRefresh -and -not $ForceMicrosoftUpdateRefresh) {
+        $cacheStatus = Get-ObjectValue -InputObject $cachedBeforeRefresh -PropertyName 'LookupStatus'
+        if ($cacheStatus -match 'Fresh') { return $cachedBeforeRefresh }
+    }
+
+    $sources = @(
+        'https://raw.githubusercontent.com/MicrosoftDocs/OfficeDocs-OfficeUpdates-pr/live/OfficeUpdates/sharepoint-updates.md',
+        'https://learn.microsoft.com/en-us/officeupdates/sharepoint-updates'
+    )
+    $lastError = ''
+
+    foreach ($source in $sources) {
+        try {
+            $response = Invoke-WebRequest -Uri $source -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop
+            $content = [string]$response.Content
+            $updates = @(Get-SPReportUpdatesFromMicrosoftContent -Content $content -Product $product)
+            if ($updates.Count -eq 0) { continue }
+
+            Write-SPReportUpdateCache -Product $product -Updates $updates -Source $source
+            $latest = $updates | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'LatestBuild') } -Descending | Select-Object -First 1
+            return [pscustomobject]@{
+                Product        = $product
+                LatestBuild    = Get-ObjectValue -InputObject $latest -PropertyName 'LatestBuild'
+                UpdateName     = Get-ObjectValue -InputObject $latest -PropertyName 'UpdateName'
+                KB             = Get-ObjectValue -InputObject $latest -PropertyName 'KB'
+                ReleaseDate    = Get-ObjectValue -InputObject $latest -PropertyName 'ReleaseDate'
+                Source         = $source
+                LookupStatus   = ('Success; cached {0} update row(s)' -f $updates.Count)
+                CacheLastRefresh = (Get-Date).ToString('o')
+                CachedUpdateCount = $updates.Count
+            }
+        }
+        catch {
+            $lastError = $_.Exception.Message
+        }
+    }
+
+    $cachedAfterFailure = Get-SPReportCachedLatestUpdate -Product $product
+    if ($cachedAfterFailure) {
+        $cachedAfterFailure.LookupStatus = ('Microsoft lookup failed; {0}' -f (Get-ObjectValue -InputObject $cachedAfterFailure -PropertyName 'LookupStatus'))
+        return $cachedAfterFailure
+    }
+
+    return [pscustomobject]@{
+        Product        = $product
+        LatestBuild    = $LatestKnownSharePointBuild
+        UpdateName     = $LatestKnownSharePointUpdateName
+        KB             = ''
+        ReleaseDate    = ''
+        Source         = 'Manual/Fallback'
+        LookupStatus   = if ($lastError) { $lastError } else { 'Microsoft update information could not be parsed.' }
+        CacheLastRefresh = ''
+        CachedUpdateCount = 0
+    }
+}
+
+function Get-DiskTypeName {
+    param([AllowNull()][object]$DriveType)
+
+    switch ([int]$DriveType) {
+        0 { 'Unknown' }
+        1 { 'No Root Directory' }
+        2 { 'Removable Disk' }
+        3 { 'Local Disk' }
+        4 { 'Network Drive' }
+        5 { 'Compact Disc' }
+        6 { 'RAM Disk' }
+        default { 'Unknown' }
+    }
+}
+
+function Get-DiskSpaceStatus {
+    param([double]$FreePercent)
+
+    if ($FreePercent -lt 10) { return 'Critical' }
+    if ($FreePercent -lt 20) { return 'Warning' }
+    return 'Good'
 }
 
 function Get-ObjectValue {
@@ -299,7 +697,7 @@ function Get-SPReportLocalServerHealth {
     $os = Get-CimInstance -ClassName Win32_OperatingSystem
     $computer = Get-CimInstance -ClassName Win32_ComputerSystem
     $processor = Get-CimInstance -ClassName Win32_Processor | Select-Object -First 1
-    $disks = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" | Sort-Object DeviceID
+    $disks = Get-CimInstance -ClassName Win32_LogicalDisk | Sort-Object DeviceID
 
     foreach ($disk in $disks) {
         $freePercent = if ($disk.Size -gt 0) { [math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2) } else { 0 }
@@ -312,9 +710,108 @@ function Get-SPReportLocalServerHealth {
             TotalMemory        = Format-ByteSize $computer.TotalPhysicalMemory
             Processor          = $processor.Name
             Drive              = $disk.DeviceID
+            DriveType          = Get-DiskTypeName $disk.DriveType
+            VolumeName         = $disk.VolumeName
+            FileSystem         = $disk.FileSystem
             DriveSize          = Format-ByteSize $disk.Size
             DriveFree          = Format-ByteSize $disk.FreeSpace
             DriveFreePercent   = ('{0:N2}%' -f $freePercent)
+            SpaceStatus        = Get-DiskSpaceStatus $freePercent
+        }
+    }
+}
+
+function Get-SPReportFarmServerUpdateStatus {
+    $servers = @(Get-SPServer | Sort-Object Name)
+    $farmMaxVersionNumber = 0
+    foreach ($server in $servers) {
+        $versionNumber = ConvertTo-VersionNumber (Get-ObjectValue -InputObject $server -PropertyName 'Version')
+        if ($versionNumber -gt $farmMaxVersionNumber) { $farmMaxVersionNumber = $versionNumber }
+    }
+
+    $farmMaxVersion = ($servers | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'Version') } -Descending | Select-Object -First 1 | ForEach-Object { Get-ObjectValue -InputObject $_ -PropertyName 'Version' })
+    $microsoftLatest = Get-SPReportMicrosoftLatestSharePointUpdate -InstalledBuild $farmMaxVersion
+    $effectiveLatestBuild = if ($LatestKnownSharePointBuild) { $LatestKnownSharePointBuild } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'LatestBuild' }
+    $effectiveLatestUpdateName = if ($LatestKnownSharePointUpdateName) { $LatestKnownSharePointUpdateName } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'UpdateName' }
+    $latestKnownVersionNumber = ConvertTo-VersionNumber $effectiveLatestBuild
+
+    foreach ($server in $servers) {
+        $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
+        $serverVersion = Get-ObjectValue -InputObject $server -PropertyName 'Version'
+        $serverVersionNumber = ConvertTo-VersionNumber $serverVersion
+        $needsUpgrade = Get-ObjectValue -InputObject $server -PropertyName 'NeedsUpgrade'
+        $farmRelativeStatus = 'Current farm maximum'
+        $latestKnownStatus = 'Not evaluated'
+        $latestUpdate = ''
+        $latestSecurityUpdate = ''
+        $updateQueryStatus = 'Not queried'
+
+        if ($serverVersionNumber -lt $farmMaxVersionNumber) { $farmRelativeStatus = 'Behind farm maximum' }
+        if ($needsUpgrade) { $farmRelativeStatus = 'Needs SharePoint upgrade' }
+
+        if ($latestKnownVersionNumber -gt 0) {
+            if ($serverVersionNumber -ge $latestKnownVersionNumber) { $latestKnownStatus = 'At or above latest known build' }
+            else { $latestKnownStatus = 'Below latest known build' }
+        }
+
+        try {
+            $hotfixes = @(Get-HotFix -ComputerName $serverName -ErrorAction Stop | Sort-Object InstalledOn -Descending)
+            $latest = $hotfixes | Select-Object -First 1
+            $latestSecurity = $hotfixes | Where-Object { $_.Description -match 'Security' } | Select-Object -First 1
+            if ($latest) { $latestUpdate = ('{0} {1} {2}' -f $latest.HotFixID, $latest.Description, $latest.InstalledOn) }
+            if ($latestSecurity) { $latestSecurityUpdate = ('{0} {1} {2}' -f $latestSecurity.HotFixID, $latestSecurity.Description, $latestSecurity.InstalledOn) }
+            $updateQueryStatus = 'Success'
+        }
+        catch {
+            $updateQueryStatus = $_.Exception.Message
+        }
+
+        [pscustomobject]@{
+            Server                  = $serverName
+            Role                    = Get-ObjectValue -InputObject $server -PropertyName 'Role'
+            Status                  = Get-ObjectValue -InputObject $server -PropertyName 'Status'
+            SharePointBuild         = $serverVersion
+            NeedsUpgrade            = $needsUpgrade
+            FarmRelativeStatus      = $farmRelativeStatus
+            LatestKnownBuild        = $effectiveLatestBuild
+            LatestKnownUpdateName   = $effectiveLatestUpdateName
+            LatestKnownKB           = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'KB'
+            LatestKnownReleaseDate  = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'ReleaseDate'
+            LatestKnownStatus       = $latestKnownStatus
+            MicrosoftLookupProduct  = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'Product'
+            MicrosoftLookupStatus   = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'LookupStatus'
+            MicrosoftLookupSource   = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'Source'
+            CacheLastRefresh        = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'CacheLastRefresh'
+            CachedUpdateCount       = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'CachedUpdateCount'
+            LatestInstalledUpdate   = $latestUpdate
+            LatestSecurityUpdate    = $latestSecurityUpdate
+            UpdateQueryStatus       = $updateQueryStatus
+        }
+    }
+}
+
+function Get-SPReportCachedSharePointUpdateHistory {
+    $servers = @(Get-SPServer | Sort-Object Name)
+    $farmMaxVersion = ($servers | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'Version') } -Descending | Select-Object -First 1 | ForEach-Object { Get-ObjectValue -InputObject $_ -PropertyName 'Version' })
+    $product = Get-SPProductUpdateSectionName $farmMaxVersion
+    if (-not $product) { return @() }
+
+    $cache = Read-SPReportUpdateCache
+    if (-not $cache -or -not (Test-ObjectProperty -InputObject $cache -PropertyName 'Products')) { return @() }
+    $productCache = Get-ObjectValue -InputObject $cache.Products -PropertyName $product
+    if (-not $productCache) { return @() }
+
+    $source = Get-ObjectValue -InputObject $productCache -PropertyName 'Source'
+    $fetchedAt = Get-ObjectValue -InputObject $productCache -PropertyName 'FetchedAt'
+    @(Get-ObjectValue -InputObject $productCache -PropertyName 'Updates') | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'LatestBuild') } -Descending | ForEach-Object {
+        [pscustomobject]@{
+            Product       = Get-ObjectValue -InputObject $_ -PropertyName 'Product'
+            LatestBuild   = Get-ObjectValue -InputObject $_ -PropertyName 'LatestBuild'
+            UpdateName    = Get-ObjectValue -InputObject $_ -PropertyName 'UpdateName'
+            KB            = Get-ObjectValue -InputObject $_ -PropertyName 'KB'
+            ReleaseDate   = Get-ObjectValue -InputObject $_ -PropertyName 'ReleaseDate'
+            CacheFetchedAt = $fetchedAt
+            CacheSource   = $source
         }
     }
 }
@@ -614,7 +1111,7 @@ function Convert-DataToTableHtml {
     )
 
     if ($null -eq $Data -or (Get-ObjectCount $Data) -eq 0) {
-        return '<p class="empty">No data returned.</p>'
+        return ('<p class="empty">{0}</p>' -f (ConvertTo-HtmlText (Get-ReportText -Key 'NoData')))
     }
 
     $hasError = @($Data | Where-Object { Test-ObjectProperty -InputObject $_ -PropertyName 'Error' }).Count -gt 0
@@ -670,7 +1167,7 @@ function Convert-ReportToHtml {
     foreach ($section in $Sections) {
         $count = Get-ObjectCount $section.Data
         [void]$sectionsHtml.AppendLine(('<section class="section {0}">' -f $section.Status.ToLowerInvariant()))
-        [void]$sectionsHtml.AppendLine(('<button class="section-title" type="button"><span>{0}</span><span>{1} item(s)</span></button>' -f (ConvertTo-HtmlText $section.Title), $count))
+        [void]$sectionsHtml.AppendLine(('<button class="section-title" type="button"><span>{0}</span><span>{1} {2}</span></button>' -f (ConvertTo-HtmlText $section.Title), $count, (ConvertTo-HtmlText (Get-ReportText -Key 'Items'))))
         [void]$sectionsHtml.AppendLine('<div class="section-body">')
         if ($section.Description) {
             [void]$sectionsHtml.AppendLine(('<p>{0}</p>' -f (ConvertTo-HtmlText $section.Description)))
@@ -681,7 +1178,7 @@ function Convert-ReportToHtml {
 
 @"
 <!doctype html>
-<html lang="en">
+<html lang="$Language">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -721,13 +1218,13 @@ tr:nth-child(even) td { background:rgba(255,255,255,.025); }
 <body>
 <header>
 <h1>$(ConvertTo-HtmlText $Title)</h1>
-<div class="meta"><span>Generated: $(ConvertTo-HtmlText $generated)</span><span>Server: $(ConvertTo-HtmlText $computer)</span><span>User: $(ConvertTo-HtmlText $user)</span></div>
+<div class="meta"><span>$(ConvertTo-HtmlText (Get-ReportText -Key 'Generated')): $(ConvertTo-HtmlText $generated)</span><span>$(ConvertTo-HtmlText (Get-ReportText -Key 'Server')): $(ConvertTo-HtmlText $computer)</span><span>$(ConvertTo-HtmlText (Get-ReportText -Key 'User')): $(ConvertTo-HtmlText $user)</span></div>
 </header>
 <main class="container">
 <div class="summary">
 $($summaryHtml.ToString())
 </div>
-<div class="toolbar"><button type="button" onclick="setAll(false)">Expand all</button><button type="button" onclick="setAll(true)">Collapse all</button></div>
+<div class="toolbar"><button type="button" onclick="setAll(false)">$(ConvertTo-HtmlText (Get-ReportText -Key 'ExpandAll'))</button><button type="button" onclick="setAll(true)">$(ConvertTo-HtmlText (Get-ReportText -Key 'CollapseAll'))</button></div>
 $($sectionsHtml.ToString())
 </main>
 <script>
@@ -763,6 +1260,9 @@ try {
     }
 
     [void][System.Reflection.Assembly]::LoadWithPartialName('System.Web')
+    if (-not $PSBoundParameters.ContainsKey('ReportTitle')) {
+        $ReportTitle = Get-ReportText -Key 'ReportTitle'
+    }
 
     $version = Invoke-SafeCollect -Name 'Farm version' -ScriptBlock { Get-SPReportFarmVersion }
     $farmOverview = Invoke-SafeCollect -Name 'Farm overview' -ScriptBlock { Get-SPReportFarmOverview }
@@ -770,23 +1270,27 @@ try {
     $webApplications = Invoke-SafeCollect -Name 'Web applications' -ScriptBlock { Get-SPReportWebApplications }
     $contentDatabases = Invoke-SafeCollect -Name 'Content databases' -ScriptBlock { Get-SPReportContentDatabases }
     $servicesOnServers = Invoke-SafeCollect -Name 'Services on servers' -ScriptBlock { Get-SPReportServicesOnServers }
+    $farmServerUpdateStatus = Invoke-SafeCollect -Name 'Farm server update status' -ScriptBlock { Get-SPReportFarmServerUpdateStatus }
+    $cachedUpdateHistory = Invoke-SafeCollect -Name 'Cached SharePoint update history' -ScriptBlock { Get-SPReportCachedSharePointUpdateHistory }
 
     $versionValue = if (Test-ObjectProperty -InputObject $version[0] -PropertyName 'BuildVersion') { $version[0].BuildVersion } else { 'Unknown' }
     $productValue = if (Test-ObjectProperty -InputObject $version[0] -PropertyName 'Product') { $version[0].Product } else { 'Unknown' }
-    Add-SummaryItem -Name 'Product' -Value $productValue -Status 'Unknown'
-    Add-SummaryItem -Name 'Build' -Value $versionValue -Status 'Unknown'
-    Add-SummaryItem -Name 'Servers' -Value (@($servers | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') }).Count) -Status (Get-SectionStatus -Data $servers)
-    Add-SummaryItem -Name 'Web Applications' -Value (@($webApplications | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') }).Count) -Status (Get-SectionStatus -Data $webApplications)
-    Add-SummaryItem -Name 'Content Databases' -Value (@($contentDatabases | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') }).Count) -Status (Get-SectionStatus -Data $contentDatabases)
+    Add-SummaryItem -Name (Get-ReportText -Key 'Product') -Value $productValue -Status 'Unknown'
+    Add-SummaryItem -Name (Get-ReportText -Key 'Build') -Value $versionValue -Status 'Unknown'
+    Add-SummaryItem -Name (Get-ReportText -Key 'Servers') -Value (@($servers | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') }).Count) -Status (Get-SectionStatus -Data $servers)
+    Add-SummaryItem -Name (Get-ReportText -Key 'WebApplications') -Value (@($webApplications | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') }).Count) -Status (Get-SectionStatus -Data $webApplications)
+    Add-SummaryItem -Name (Get-ReportText -Key 'ContentDatabases') -Value (@($contentDatabases | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') }).Count) -Status (Get-SectionStatus -Data $contentDatabases)
 
-    Add-ReportSection -Title 'Farm Version' -Description 'Detected farm version and configuration database.' -Data $version -Columns @('Product', 'BuildVersion', 'FarmId', 'Configuration', 'Status') -Status (Get-SectionStatus -Data $version)
-    Add-ReportSection -Title 'Farm Overview' -Description 'Core farm identity, status, timer service identity, and Central Administration URL.' -Data $farmOverview -Columns @('FarmId', 'Status', 'BuildVersion', 'ConfigurationDatabase', 'ConfigurationDatabaseSize', 'TimerServiceAccount', 'CentralAdministration') -Status (Get-SectionStatus -Data $farmOverview)
-    Add-ReportSection -Title 'Servers' -Description 'Servers joined to the farm and version/role indicators.' -Data $servers -Columns @('Name', 'Role', 'ServerRole', 'CompliantWithMinRole', 'Address', 'Status', 'NeedsUpgrade', 'Version') -Status (Get-SectionStatus -Data $servers)
-    Add-ReportSection -Title 'Services On Servers' -Description 'SharePoint service instances and their status on farm servers.' -Data $servicesOnServers -Columns @('Server', 'Service', 'Status', 'ServiceType', 'Id') -Status (Get-SectionStatus -Data $servicesOnServers)
-    Add-ReportSection -Title 'Web Applications' -Description 'Web application configuration, authentication, application pools, and content database counts.' -Data $webApplications -Columns @('Name', 'Url', 'ApplicationPool', 'ApplicationPoolAccount', 'ClaimsAuthentication', 'AllowAnonymous', 'AuthenticationProvider', 'ContentDatabases', 'MaximumFileSizeMB', 'TimeZone', 'IsCentralAdministration') -Status (Get-SectionStatus -Data $webApplications)
-    Add-ReportSection -Title 'Content Databases' -Description 'Content database sizing, site counts, and upgrade indicators.' -Data $contentDatabases -Columns @('Name', 'WebApplication', 'Server', 'Status', 'CurrentSiteCount', 'WarningSiteCount', 'MaximumSiteCount', 'DiskSizeRequired', 'NeedsUpgrade', 'Id') -Status (Get-SectionStatus -Data $contentDatabases)
+    Add-ReportSection -Title (Get-ReportText -Key 'FarmVersionTitle') -Description (Get-ReportText -Key 'FarmVersionDescription') -Data $version -Columns @('Product', 'BuildVersion', 'FarmId', 'Configuration', 'Status') -Status (Get-SectionStatus -Data $version)
+    Add-ReportSection -Title (Get-ReportText -Key 'FarmOverviewTitle') -Description (Get-ReportText -Key 'FarmOverviewDescription') -Data $farmOverview -Columns @('FarmId', 'Status', 'BuildVersion', 'ConfigurationDatabase', 'ConfigurationDatabaseSize', 'TimerServiceAccount', 'CentralAdministration') -Status (Get-SectionStatus -Data $farmOverview)
+    Add-ReportSection -Title (Get-ReportText -Key 'ServersTitle') -Description (Get-ReportText -Key 'ServersDescription') -Data $servers -Columns @('Name', 'Role', 'ServerRole', 'CompliantWithMinRole', 'Address', 'Status', 'NeedsUpgrade', 'Version') -Status (Get-SectionStatus -Data $servers)
+    Add-ReportSection -Title (Get-ReportText -Key 'FarmServerUpdatesTitle') -Description (Get-ReportText -Key 'FarmServerUpdatesDescription') -Data $farmServerUpdateStatus -Columns @('Server', 'Role', 'Status', 'SharePointBuild', 'NeedsUpgrade', 'FarmRelativeStatus', 'LatestKnownBuild', 'LatestKnownUpdateName', 'LatestKnownKB', 'LatestKnownReleaseDate', 'LatestKnownStatus', 'MicrosoftLookupProduct', 'MicrosoftLookupStatus', 'MicrosoftLookupSource', 'CacheLastRefresh', 'CachedUpdateCount', 'LatestInstalledUpdate', 'LatestSecurityUpdate', 'UpdateQueryStatus') -Status (Get-SectionStatus -Data $farmServerUpdateStatus)
+    Add-ReportSection -Title (Get-ReportText -Key 'UpdateCacheHistoryTitle') -Description (Get-ReportText -Key 'UpdateCacheHistoryDescription') -Data $cachedUpdateHistory -Columns @('Product', 'LatestBuild', 'UpdateName', 'KB', 'ReleaseDate', 'CacheFetchedAt', 'CacheSource') -Status (Get-SectionStatus -Data $cachedUpdateHistory)
+    Add-ReportSection -Title (Get-ReportText -Key 'ServicesTitle') -Description (Get-ReportText -Key 'ServicesDescription') -Data $servicesOnServers -Columns @('Server', 'Service', 'Status', 'ServiceType', 'Id') -Status (Get-SectionStatus -Data $servicesOnServers)
+    Add-ReportSection -Title (Get-ReportText -Key 'WebAppsTitle') -Description (Get-ReportText -Key 'WebAppsDescription') -Data $webApplications -Columns @('Name', 'Url', 'ApplicationPool', 'ApplicationPoolAccount', 'ClaimsAuthentication', 'AllowAnonymous', 'AuthenticationProvider', 'ContentDatabases', 'MaximumFileSizeMB', 'TimeZone', 'IsCentralAdministration') -Status (Get-SectionStatus -Data $webApplications)
+    Add-ReportSection -Title (Get-ReportText -Key 'ContentDbTitle') -Description (Get-ReportText -Key 'ContentDbDescription') -Data $contentDatabases -Columns @('Name', 'WebApplication', 'Server', 'Status', 'CurrentSiteCount', 'WarningSiteCount', 'MaximumSiteCount', 'DiskSizeRequired', 'NeedsUpgrade', 'Id') -Status (Get-SectionStatus -Data $contentDatabases)
 
-    Add-SectionFromCollector -Title 'Local Server Health' -Description 'Operating system, memory, processor, PowerShell version, and fixed disk free space on the server where the script ran.' -Collector { Get-SPReportLocalServerHealth } -Columns @('Server', 'OperatingSystem', 'OSVersion', 'LastBootTime', 'PowerShellVersion', 'TotalMemory', 'Processor', 'Drive', 'DriveSize', 'DriveFree', 'DriveFreePercent')
+    Add-SectionFromCollector -Title (Get-ReportText -Key 'LocalHealthTitle') -Description (Get-ReportText -Key 'LocalHealthDescription') -Collector { Get-SPReportLocalServerHealth } -Columns @('Server', 'OperatingSystem', 'OSVersion', 'LastBootTime', 'PowerShellVersion', 'TotalMemory', 'Processor', 'Drive', 'DriveType', 'VolumeName', 'FileSystem', 'DriveSize', 'DriveFree', 'DriveFreePercent', 'SpaceStatus')
     Add-SectionFromCollector -Title 'All SharePoint Databases' -Description 'All SharePoint databases registered in the configuration database.' -Collector { Get-SPReportDatabases } -Columns @('Name', 'TypeName', 'Server', 'Status', 'DiskSizeRequired', 'NeedsUpgrade', 'Id')
     Add-SectionFromCollector -Title 'Service Applications' -Description 'Service applications provisioned in the farm.' -Collector { Get-SPReportServiceApplications } -Columns @('Name', 'TypeName', 'Status', 'ApplicationPool', 'Id')
     Add-SectionFromCollector -Title 'Service Application Proxies' -Description 'Service application proxies and connection status when exposed by the object model.' -Collector { Get-SPReportServiceApplicationProxies } -Columns @('Name', 'TypeName', 'Status', 'IsConnected', 'ServiceApplication', 'Id')
