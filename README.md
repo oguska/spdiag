@@ -67,4 +67,5 @@ Force a fresh Microsoft lookup even when the cache is still fresh:
 - Use `-SkipMicrosoftUpdateCheck` to avoid outbound Microsoft access attempts.
 - Default update cache path is `C:\ProgramData\SPFarmReport\SharePointUpdatesCache.json`.
 - The `Cached SharePoint Update History` section lists cached previous CU/security update rows for the detected SharePoint product.
+- `Unhealthy Health Analyzer Findings` reads Central Administration Health Reports when available and includes explanation, remedy, and possible solution guidance.
 - Supported report languages are `en-US` and `tr-TR`.

@@ -148,6 +148,8 @@ $script:Translations = @{
         TimerJobsDescription = 'Timer job schedule and disablement status.'
         HealthAnalyzerTitle = 'Health Analyzer Rules'
         HealthAnalyzerDescription = 'Health Analyzer rules and configured severity.'
+        HealthAnalyzerFindingsTitle = 'Unhealthy Health Analyzer Findings'
+        HealthAnalyzerFindingsDescription = 'Current Health Analyzer findings from Central Administration with explanation, remedy, and possible solution guidance.'
         SearchTopologyTitle = 'Search Topology'
         SearchTopologyDescription = 'Active enterprise search topology components.'
         InstalledFeaturesTitle = 'Installed Features'
@@ -216,6 +218,8 @@ $script:Translations = @{
         TimerJobsDescription = 'Zamanlayıcı işi zamanlaması ve devre dışı bırakma durumu.'
         HealthAnalyzerTitle = 'Sağlık Çözümleyici Kuralları'
         HealthAnalyzerDescription = 'Sağlık Çözümleyici kuralları ve yapılandırılmış önem derecesi.'
+        HealthAnalyzerFindingsTitle = 'Sağlıksız Sağlık Çözümleyici Bulguları'
+        HealthAnalyzerFindingsDescription = 'Central Administration üzerinden alınan geçerli Sağlık Çözümleyici bulguları; açıklama, çözüm ve olası çözüm önerileri ile birlikte.'
         SearchTopologyTitle = 'Arama Topolojisi'
         SearchTopologyDescription = 'Etkin kurumsal arama topolojisi bileşenleri.'
         InstalledFeaturesTitle = 'Yüklü Özellikler'
@@ -351,6 +355,15 @@ $script:ColumnTranslations = @{
         Severity = 'Önem Derecesi'
         Enabled = 'Etkin'
         RepairAutomatically = 'Otomatik Onar'
+        Title = 'Başlık'
+        CurrentStatus = 'Geçerli Durum'
+        Explanation = 'Açıklama'
+        Remedy = 'Çözüm'
+        PossibleSolution = 'Olası Çözüm'
+        Modified = 'Değiştirilme'
+        FailingServers = 'Etkilenen Sunucular'
+        FailingServices = 'Etkilenen Servisler'
+        RuleId = 'Kural Kimliği'
         SearchApplication = 'Arama Uygulaması'
         ComponentName = 'Bileşen Adı'
         ComponentType = 'Bileşen Türü'
@@ -823,6 +836,41 @@ function Get-SPReportUserName {
     return ''
 }
 
+function Get-SPListItemFieldText {
+    param(
+        [AllowNull()][object]$Item,
+        [string[]]$FieldNames
+    )
+
+    if ($null -eq $Item) { return '' }
+
+    foreach ($fieldName in $FieldNames) {
+        try {
+            $field = $null
+            if ($Item.Fields.ContainsField($fieldName)) {
+                $field = $Item.Fields.GetField($fieldName)
+            }
+            elseif ($Item.Fields.ContainsFieldWithStaticName($fieldName)) {
+                $field = $Item.Fields.GetFieldByInternalName($fieldName)
+            }
+
+            if ($field) {
+                $value = $Item[$field.InternalName]
+                if ($null -ne $value -and [string]$value -ne '') { return (ConvertFrom-HtmlFragmentText $value) }
+            }
+        }
+        catch { }
+
+        try {
+            $value = $Item[$fieldName]
+            if ($null -ne $value -and [string]$value -ne '') { return (ConvertFrom-HtmlFragmentText $value) }
+        }
+        catch { }
+    }
+
+    return ''
+}
+
 function Get-SPReportConfigurationDatabase {
     $databases = @(Get-SPDatabase)
     $configDb = $databases | Where-Object { $_.GetType().Name -eq 'SPConfigurationDatabase' } | Select-Object -First 1
@@ -1269,6 +1317,63 @@ function Get-SPReportHealthAnalyzer {
     }
 }
 
+function Get-SPReportHealthAnalyzerFindings {
+    $adminWebApplication = Get-SPWebApplication -IncludeCentralAdministration | Where-Object { Get-ObjectValue -InputObject $_ -PropertyName 'IsAdministrationWebApplication' } | Select-Object -First 1
+    if (-not $adminWebApplication) {
+        return [pscustomobject]@{ Error = 'Central Administration web application could not be found.'; Details = '' }
+    }
+
+    $site = $null
+    $web = $null
+    try {
+        $site = Get-SPSite (Get-ObjectValue -InputObject $adminWebApplication -PropertyName 'Url')
+        $web = $site.OpenWeb()
+        $list = $web.Lists.TryGetList('Health Reports')
+        if (-not $list) { $list = $web.Lists.TryGetList('HealthReports') }
+        if (-not $list) {
+            foreach ($candidate in $web.Lists) {
+                $rootFolder = Get-ObjectValue -InputObject $candidate -PropertyName 'RootFolder'
+                $rootName = Get-ObjectValue -InputObject $rootFolder -PropertyName 'Name'
+                if ($candidate.Title -match 'Health|Sağlık' -or $rootName -eq 'HealthReports') {
+                    $list = $candidate
+                    break
+                }
+            }
+        }
+
+        if (-not $list) {
+            return [pscustomobject]@{ Error = 'Central Administration Health Reports list could not be found.'; Details = '' }
+        }
+
+        foreach ($item in $list.Items) {
+            $title = Get-SPListItemFieldText -Item $item -FieldNames @('Title', 'Name')
+            $severity = Get-SPListItemFieldText -Item $item -FieldNames @('Severity', 'HealthReportSeverity')
+            $currentStatus = Get-SPListItemFieldText -Item $item -FieldNames @('Status', 'HealthReportStatus')
+            $explanation = Get-SPListItemFieldText -Item $item -FieldNames @('Explanation', 'HealthReportExplanation')
+            $remedy = Get-SPListItemFieldText -Item $item -FieldNames @('Remedy', 'HealthReportRemedy')
+            $possibleSolution = if ($remedy) { $remedy } else { 'Review the rule in Central Administration, validate affected services/servers, then run the rule again after remediation.' }
+
+            [pscustomobject]@{
+                Title            = $title
+                Category         = Get-SPListItemFieldText -Item $item -FieldNames @('Category', 'HealthReportCategory')
+                Severity         = $severity
+                CurrentStatus    = $currentStatus
+                Explanation      = $explanation
+                Remedy           = $remedy
+                PossibleSolution = $possibleSolution
+                FailingServers   = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Servers', 'FailingServers', 'Failing_x0020_Servers')
+                FailingServices  = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Services', 'FailingServices', 'Failing_x0020_Services')
+                Modified         = Get-SPListItemFieldText -Item $item -FieldNames @('Modified')
+                RuleId           = Get-SPListItemFieldText -Item $item -FieldNames @('RuleId', 'Rule ID', 'HealthReportRuleId')
+            }
+        }
+    }
+    finally {
+        if ($web) { $web.Dispose() }
+        if ($site) { $site.Dispose() }
+    }
+}
+
 function Get-SPReportSearchTopology {
     if (-not (Test-CommandAvailable -Name Get-SPEnterpriseSearchServiceApplication)) {
         return [pscustomobject]@{ Error = 'Search cmdlets are not available in this environment.'; Details = '' }
@@ -1579,6 +1684,7 @@ try {
     }
 
     if (-not $SkipHealthAnalyzer) {
+        Add-SectionFromCollector -Title (Get-ReportText -Key 'HealthAnalyzerFindingsTitle') -Description (Get-ReportText -Key 'HealthAnalyzerFindingsDescription') -Collector { Get-SPReportHealthAnalyzerFindings } -Columns @('Title', 'Category', 'Severity', 'CurrentStatus', 'Explanation', 'Remedy', 'PossibleSolution', 'FailingServers', 'FailingServices', 'Modified', 'RuleId')
         Add-SectionFromCollector -Title (Get-ReportText -Key 'HealthAnalyzerTitle') -Description (Get-ReportText -Key 'HealthAnalyzerDescription') -Collector { Get-SPReportHealthAnalyzer } -Columns @('Category', 'Summary', 'Severity', 'Enabled', 'Schedule', 'RepairAutomatically')
     }
     else {
