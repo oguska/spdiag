@@ -98,6 +98,7 @@ $script:Translations = @{
         User = 'User'
         ExpandAll = 'Expand all'
         CollapseAll = 'Collapse all'
+        ToggleTheme = 'Toggle theme'
         Items = 'item(s)'
         NoData = 'No data returned.'
         Product = 'Product'
@@ -165,6 +166,7 @@ $script:Translations = @{
         User = 'Kullanıcı'
         ExpandAll = 'Tümünü genişlet'
         CollapseAll = 'Tümünü daralt'
+        ToggleTheme = 'Tema değiştir'
         Items = 'öğe'
         NoData = 'Veri dönmedi.'
         Product = 'Ürün'
@@ -225,6 +227,156 @@ $script:Translations = @{
         IisDetailsTitle = 'IIS Ayrıntıları'
         SkippedBy = 'Atlandı'
     }
+}
+
+$script:ColumnTranslations = @{
+    'tr-TR' = @{
+        Product = 'Ürün'
+        BuildVersion = 'Derleme Sürümü'
+        FarmId = 'Farm Kimliği'
+        Configuration = 'Yapılandırma'
+        Status = 'Durum'
+        ConfigurationDatabase = 'Yapılandırma Veritabanı'
+        ConfigurationDatabaseSize = 'Yapılandırma Veritabanı Boyutu'
+        TimerServiceAccount = 'Zamanlayıcı Servis Hesabı'
+        CentralAdministration = 'Merkezi Yönetim'
+        Name = 'Ad'
+        Role = 'Rol'
+        ServerRole = 'Sunucu Rolü'
+        CompliantWithMinRole = 'MinRole Uyumlu'
+        Address = 'Adres'
+        NeedsUpgrade = 'Yükseltme Gerekli'
+        Version = 'Sürüm'
+        Server = 'Sunucu'
+        FarmBuild = 'Farm Derlemesi'
+        SharePointBuild = 'SharePoint Derlemesi'
+        FarmRelativeStatus = 'Farma Göre Durum'
+        LatestKnownBuild = 'Bilinen En Güncel Derleme'
+        LatestKnownUpdateName = 'Bilinen En Güncel Güncelleme'
+        LatestKnownKB = 'Bilinen En Güncel KB'
+        LatestKnownReleaseDate = 'Bilinen En Güncel Yayın Tarihi'
+        LatestKnownStatus = 'Bilinen Güncellik Durumu'
+        MicrosoftLookupProduct = 'Microsoft Arama Ürünü'
+        MicrosoftLookupStatus = 'Microsoft Arama Durumu'
+        MicrosoftLookupSource = 'Microsoft Arama Kaynağı'
+        CacheLastRefresh = 'Önbellek Son Yenileme'
+        CachedUpdateCount = 'Önbellekteki Güncelleme Sayısı'
+        LatestInstalledUpdate = 'Son Yüklü Güncelleme'
+        LatestSecurityUpdate = 'Son Güvenlik Güncellemesi'
+        UpdateQueryStatus = 'Güncelleme Sorgu Durumu'
+        LatestBuild = 'En Güncel Derleme'
+        UpdateName = 'Güncelleme Adı'
+        KB = 'KB'
+        ReleaseDate = 'Yayın Tarihi'
+        CacheFetchedAt = 'Önbelleğe Alınma Zamanı'
+        CacheSource = 'Önbellek Kaynağı'
+        Service = 'Servis'
+        ServiceType = 'Servis Türü'
+        Id = 'Kimlik'
+        Url = 'URL'
+        ApplicationPool = 'Uygulama Havuzu'
+        ApplicationPoolAccount = 'Uygulama Havuzu Hesabı'
+        ClaimsAuthentication = 'Claims Kimlik Doğrulama'
+        AllowAnonymous = 'Anonim Erişim'
+        AuthenticationProvider = 'Kimlik Doğrulama Sağlayıcısı'
+        ContentDatabases = 'İçerik Veritabanları'
+        MaximumFileSizeMB = 'Maksimum Dosya Boyutu (MB)'
+        TimeZone = 'Saat Dilimi'
+        IsCentralAdministration = 'Merkezi Yönetim mi'
+        WebApplication = 'Web Uygulaması'
+        CurrentSiteCount = 'Geçerli Site Sayısı'
+        WarningSiteCount = 'Uyarı Site Sayısı'
+        MaximumSiteCount = 'Maksimum Site Sayısı'
+        DiskSizeRequired = 'Gerekli Disk Alanı'
+        OperatingSystem = 'İşletim Sistemi'
+        OSVersion = 'İS Sürümü'
+        LastBootTime = 'Son Açılış Zamanı'
+        PowerShellVersion = 'PowerShell Sürümü'
+        TotalMemory = 'Toplam Bellek'
+        Processor = 'İşlemci'
+        Drive = 'Sürücü'
+        DriveType = 'Sürücü Türü'
+        VolumeName = 'Birim Adı'
+        FileSystem = 'Dosya Sistemi'
+        DriveSize = 'Sürücü Boyutu'
+        DriveFree = 'Boş Alan'
+        DriveFreePercent = 'Boş Alan Yüzdesi'
+        SpaceStatus = 'Alan Durumu'
+        TypeName = 'Tür Adı'
+        IsConnected = 'Bağlı mı'
+        ServiceApplication = 'Servis Uygulaması'
+        UserName = 'Kullanıcı Adı'
+        DisplayName = 'Görünen Ad'
+        AutomaticChangeEnabled = 'Otomatik Değişim Etkin'
+        DaysBeforeExpiryToWarn = 'Süre Dolmadan Uyarı Günü'
+        PasswordLastChanged = 'Parola Son Değişim'
+        Zone = 'Bölge'
+        PublicUrl = 'Genel URL'
+        IncomingUrl = 'Gelen URL'
+        UriScheme = 'URI Şeması'
+        Deployed = 'Dağıtıldı'
+        ContainsGlobalAssembly = 'Global Assembly İçerir'
+        ContainsCasPolicy = 'CAS İlkesi İçerir'
+        DeploymentState = 'Dağıtım Durumu'
+        LastOperationResult = 'Son İşlem Sonucu'
+        LastOperationEndTime = 'Son İşlem Bitiş Zamanı'
+        Extension = 'Uzantı'
+        LogLocation = 'Günlük Konumu'
+        LogDiskSpaceUsageGB = 'Günlük Disk Kullanımı (GB)'
+        LogMaxDiskSpaceUsageEnabled = 'Maksimum Günlük Alanı Etkin'
+        DaysToKeepLogs = 'Günlük Saklama Günü'
+        UsageServiceStatus = 'Kullanım Servisi Durumu'
+        UsageLogLocation = 'Kullanım Günlüğü Konumu'
+        UsageLogMaxSpaceGB = 'Kullanım Günlüğü Maksimum Alanı (GB)'
+        UsageLogCutTime = 'Kullanım Günlüğü Kesim Zamanı'
+        FarmOutboundMailService = 'Farm Giden Posta Servisi'
+        SampleWebApplication = 'Örnek Web Uygulaması'
+        OutboundMailServer = 'Giden Posta Sunucusu'
+        FromAddress = 'Gönderen Adresi'
+        ReplyToAddress = 'Yanıt Adresi'
+        Owner = 'Sahip'
+        SecondaryOwner = 'İkincil Sahip'
+        ContentDatabase = 'İçerik Veritabanı'
+        Template = 'Şablon'
+        CompatibilityLevel = 'Uyumluluk Seviyesi'
+        StorageUsed = 'Kullanılan Depolama'
+        StorageQuota = 'Depolama Kotası'
+        LastContentModifiedDate = 'Son İçerik Değişim Tarihi'
+        LockState = 'Kilit Durumu'
+        Schedule = 'Zamanlama'
+        IsDisabled = 'Devre Dışı mı'
+        LastRunTime = 'Son Çalışma Zamanı'
+        Category = 'Kategori'
+        Summary = 'Özet'
+        Severity = 'Önem Derecesi'
+        Enabled = 'Etkin'
+        RepairAutomatically = 'Otomatik Onar'
+        SearchApplication = 'Arama Uygulaması'
+        ComponentName = 'Bileşen Adı'
+        ComponentType = 'Bileşen Türü'
+        ServerName = 'Sunucu Adı'
+        RootDirectory = 'Kök Dizin'
+        IndexPartition = 'Dizin Bölümü'
+        Scope = 'Kapsam'
+        Runtime = 'Çalışma Zamanı'
+        PipelineMode = 'Pipeline Modu'
+        IdentityType = 'Kimlik Türü'
+        Enable32Bit = '32-bit Etkin'
+        PhysicalPath = 'Fiziksel Yol'
+        Bindings = 'Bağlamalar'
+        Error = 'Hata'
+        Details = 'Ayrıntılar'
+    }
+}
+
+function Get-ColumnHeaderText {
+    param([string]$ColumnName)
+
+    if ($script:ColumnTranslations.ContainsKey($Language) -and $script:ColumnTranslations[$Language].ContainsKey($ColumnName)) {
+        return $script:ColumnTranslations[$Language][$ColumnName]
+    }
+
+    return $ColumnName
 }
 
 function Get-ReportText {
@@ -1233,7 +1385,7 @@ function Convert-DataToTableHtml {
     [void]$html.AppendLine('<div class="table-wrap"><table>')
     [void]$html.AppendLine('<thead><tr>')
     foreach ($column in $Columns) {
-        [void]$html.AppendLine(('<th>{0}</th>' -f (ConvertTo-HtmlText $column)))
+        [void]$html.AppendLine(('<th title="{0}">{1}</th>' -f (ConvertTo-HtmlText $column), (ConvertTo-HtmlText (Get-ColumnHeaderText -ColumnName $column))))
     }
     [void]$html.AppendLine('</tr></thead><tbody>')
 
@@ -1291,10 +1443,11 @@ function Convert-ReportToHtml {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>$(ConvertTo-HtmlText $Title)</title>
 <style>
-:root { --bg:#0f172a; --panel:#111827; --panel2:#1f2937; --text:#e5e7eb; --muted:#9ca3af; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --unknown:#64748b; --line:#334155; }
+:root { --bg:#0b1120; --header1:#172554; --header2:#111827; --panel:#111827; --panel2:#1f2937; --tableHead:#020617; --stripe:rgba(255,255,255,.025); --text:#e5e7eb; --muted:#9ca3af; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --unknown:#64748b; --line:#334155; }
+body.light { --bg:#f8fafc; --header1:#dbeafe; --header2:#ffffff; --panel:#ffffff; --panel2:#eff6ff; --tableHead:#e0f2fe; --stripe:rgba(15,23,42,.035); --text:#0f172a; --muted:#475569; --good:#15803d; --warn:#b45309; --bad:#b91c1c; --unknown:#64748b; --line:#cbd5e1; }
 * { box-sizing:border-box; }
-body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:#0b1120; color:var(--text); }
-header { padding:28px 32px; background:linear-gradient(135deg,#172554,#111827 65%); border-bottom:1px solid var(--line); }
+body { margin:0; font-family:Segoe UI, Arial, sans-serif; background:var(--bg); color:var(--text); }
+header { padding:28px 32px; background:linear-gradient(135deg,var(--header1),var(--header2) 65%); border-bottom:1px solid var(--line); }
 h1 { margin:0 0 8px 0; font-size:28px; }
 .meta { color:var(--muted); display:flex; gap:18px; flex-wrap:wrap; font-size:13px; }
 .container { padding:24px 32px 40px; }
@@ -1314,8 +1467,8 @@ h1 { margin:0 0 8px 0; font-size:28px; }
 .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:10px; }
 table { width:100%; border-collapse:collapse; min-width:760px; }
 th, td { padding:9px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:13px; }
-th { position:sticky; top:0; background:#020617; color:#cbd5e1; z-index:1; }
-tr:nth-child(even) td { background:rgba(255,255,255,.025); }
+th { position:sticky; top:0; background:var(--tableHead); color:var(--text); z-index:1; }
+tr:nth-child(even) td { background:var(--stripe); }
 .status-cell { font-weight:600; }
 .empty { color:var(--muted); font-style:italic; }
 @media (max-width:700px) { header,.container { padding-left:16px; padding-right:16px; } h1 { font-size:22px; } .value { font-size:17px; } }
@@ -1331,11 +1484,14 @@ tr:nth-child(even) td { background:rgba(255,255,255,.025); }
 <div class="summary">
 $($summaryHtml.ToString())
 </div>
-<div class="toolbar"><button type="button" onclick="setAll(false)">$(ConvertTo-HtmlText (Get-ReportText -Key 'ExpandAll'))</button><button type="button" onclick="setAll(true)">$(ConvertTo-HtmlText (Get-ReportText -Key 'CollapseAll'))</button></div>
+<div class="toolbar"><button type="button" onclick="setAll(false)">$(ConvertTo-HtmlText (Get-ReportText -Key 'ExpandAll'))</button><button type="button" onclick="setAll(true)">$(ConvertTo-HtmlText (Get-ReportText -Key 'CollapseAll'))</button><button type="button" onclick="toggleTheme()">$(ConvertTo-HtmlText (Get-ReportText -Key 'ToggleTheme'))</button></div>
 $($sectionsHtml.ToString())
 </main>
 <script>
 function setAll(c){document.querySelectorAll('.section').forEach(function(s){s.classList.toggle('collapsed',c);});}
+function applyTheme(t){document.body.classList.toggle('light',t==='light'); try{localStorage.setItem('spReportTheme',t);}catch(e){}}
+function toggleTheme(){applyTheme(document.body.classList.contains('light')?'dark':'light');}
+try{applyTheme(localStorage.getItem('spReportTheme')||'dark');}catch(e){applyTheme('dark');}
 document.querySelectorAll('.section-title').forEach(function(b){b.addEventListener('click',function(){b.parentElement.classList.toggle('collapsed');});});
 document.querySelectorAll('.status-cell').forEach(function(td){var v=td.textContent.toLowerCase(); if(v.indexOf('online')>=0||v.indexOf('succeeded')>=0||v==='false'||v.indexOf('good')>=0){td.style.color='var(--good)';} if(v.indexOf('warning')>=0||v.indexOf('failed')>=0||v.indexOf('error')>=0||v==='true'){td.style.color='var(--warn)';} if(v.indexOf('critical')>=0||v.indexOf('offline')>=0){td.style.color='var(--bad)';}});
 </script>
