@@ -114,6 +114,8 @@ $script:Translations = @{
         ServersDescription = 'Servers joined to the farm and version/role indicators.'
         FarmServerUpdatesTitle = 'Farm Server Update Status'
         FarmServerUpdatesDescription = 'SharePoint build, upgrade state, and latest installed Windows update indicators per farm server. If Microsoft access is available, the latest SharePoint update is checked automatically.'
+        InstalledUpdatesTitle = 'Installed Updates On Farm Servers'
+        InstalledUpdatesDescription = 'All Windows hotfix/update entries returned by Get-HotFix for valid farm servers. Servers with role Invalid are excluded.'
         UpdateCacheHistoryTitle = 'Cached SharePoint Update History'
         UpdateCacheHistoryDescription = 'Previously cached Microsoft SharePoint CU/security update rows for the detected product. This cache is used when Microsoft access is unavailable or skipped.'
         ServicesTitle = 'Services On Servers'
@@ -184,6 +186,8 @@ $script:Translations = @{
         ServersDescription = 'Farma bağlı sunucular ve sürüm/rol göstergeleri.'
         FarmServerUpdatesTitle = 'Farm Sunucu Güncelleme Durumu'
         FarmServerUpdatesDescription = 'Farm sunucuları için SharePoint derlemesi, yükseltme durumu ve en son yüklü Windows güncelleme göstergeleri. Microsoft erişimi varsa en güncel SharePoint güncellemesi otomatik kontrol edilir.'
+        InstalledUpdatesTitle = 'Farm Sunucularındaki Yüklü Güncellemeler'
+        InstalledUpdatesDescription = 'Geçerli farm sunucuları için Get-HotFix tarafından döndürülen tüm Windows hotfix/güncelleme kayıtları. Rolü Invalid olan sunucular hariç tutulur.'
         UpdateCacheHistoryTitle = 'Önbelleğe Alınmış SharePoint Güncelleme Geçmişi'
         UpdateCacheHistoryDescription = 'Algılanan ürün için daha önce önbelleğe alınmış Microsoft SharePoint CU/güvenlik güncelleme satırları. Microsoft erişimi yoksa veya atlanırsa bu önbellek kullanılır.'
         ServicesTitle = 'Sunuculardaki Servisler'
@@ -268,6 +272,12 @@ $script:ColumnTranslations = @{
         LatestInstalledUpdate = 'Son Yüklü Güncelleme'
         LatestSecurityUpdate = 'Son Güvenlik Güncellemesi'
         UpdateQueryStatus = 'Güncelleme Sorgu Durumu'
+        HotFixId = 'Hotfix Kimliği'
+        Description = 'Açıklama'
+        InstalledBy = 'Yükleyen'
+        InstalledOn = 'Yüklenme Tarihi'
+        Caption = 'Başlık'
+        UpdateType = 'Güncelleme Türü'
         LatestBuild = 'En Güncel Derleme'
         UpdateName = 'Güncelleme Adı'
         KB = 'KB'
@@ -972,7 +982,7 @@ function Get-SPReportFarmOverview {
 }
 
 function Get-SPReportServers {
-    Get-SPServer | Sort-Object Name | ForEach-Object {
+    Get-SPServer | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'Role') -ne 'Invalid' } | Sort-Object Name | ForEach-Object {
         [pscustomobject]@{
             Name             = $_.Name
             Role             = Get-ObjectValue $_ 'Role'
@@ -1030,8 +1040,9 @@ function Get-SPReportLocalServerHealth {
 function Get-SPReportFarmServerUpdateStatus {
     $farmBuild = (Get-SPFarm).BuildVersion.ToString()
     $servers = @(Get-SPServer | Sort-Object Name)
+    $activeFarmServers = @($servers | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'Role') -ne 'Invalid' })
     $farmMaxVersionNumber = 0
-    foreach ($server in $servers) {
+    foreach ($server in $activeFarmServers) {
         $versionNumber = ConvertTo-VersionNumber (Get-ObjectValue -InputObject $server -PropertyName 'Version')
         if ($versionNumber -gt $farmMaxVersionNumber) { $farmMaxVersionNumber = $versionNumber }
     }
@@ -1044,6 +1055,8 @@ function Get-SPReportFarmServerUpdateStatus {
 
     foreach ($server in $servers) {
         $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
+        $serverRole = Get-ObjectValue -InputObject $server -PropertyName 'Role'
+        $isInvalidRole = $serverRole -eq 'Invalid'
         $serverVersion = Get-ObjectValue -InputObject $server -PropertyName 'Version'
         $serverVersionNumber = ConvertTo-VersionNumber $serverVersion
         $needsUpgrade = Get-ObjectValue -InputObject $server -PropertyName 'NeedsUpgrade'
@@ -1053,47 +1066,86 @@ function Get-SPReportFarmServerUpdateStatus {
         $latestSecurityUpdate = ''
         $updateQueryStatus = 'Not queried'
 
-        if ($serverVersionNumber -lt $farmMaxVersionNumber) { $farmRelativeStatus = 'Behind farm maximum' }
-        if ($needsUpgrade) { $farmRelativeStatus = 'Needs SharePoint upgrade' }
-
-        if ($latestKnownVersionNumber -gt 0) {
-            if ($farmBuildVersionNumber -ge $latestKnownVersionNumber) { $latestKnownStatus = 'At or above latest known build' }
-            else { $latestKnownStatus = 'Below latest known build' }
+        if ($isInvalidRole) {
+            $farmRelativeStatus = 'Excluded - invalid farm role'
+            $updateQueryStatus = 'Skipped - invalid farm role'
         }
+        else {
+            if ($serverVersionNumber -lt $farmMaxVersionNumber) { $farmRelativeStatus = 'Behind farm maximum' }
+            if ($needsUpgrade) { $farmRelativeStatus = 'Needs SharePoint upgrade' }
 
-        try {
-            $hotfixes = @(Get-HotFix -ComputerName $serverName -ErrorAction Stop | Sort-Object InstalledOn -Descending)
-            $latest = $hotfixes | Select-Object -First 1
-            $latestSecurity = $hotfixes | Where-Object { $_.Description -match 'Security' } | Select-Object -First 1
-            if ($latest) { $latestUpdate = ('{0} {1} {2}' -f $latest.HotFixID, $latest.Description, $latest.InstalledOn) }
-            if ($latestSecurity) { $latestSecurityUpdate = ('{0} {1} {2}' -f $latestSecurity.HotFixID, $latestSecurity.Description, $latestSecurity.InstalledOn) }
-            $updateQueryStatus = 'Success'
-        }
-        catch {
-            $updateQueryStatus = $_.Exception.Message
+            if ($latestKnownVersionNumber -gt 0) {
+                if ($farmBuildVersionNumber -ge $latestKnownVersionNumber) { $latestKnownStatus = 'At or above latest known build' }
+                else { $latestKnownStatus = 'Below latest known build' }
+            }
+
+            try {
+                $hotfixes = @(Get-HotFix -ComputerName $serverName -ErrorAction Stop | Sort-Object InstalledOn -Descending)
+                $latest = $hotfixes | Select-Object -First 1
+                $latestSecurity = $hotfixes | Where-Object { $_.Description -match 'Security' } | Select-Object -First 1
+                if ($latest) { $latestUpdate = ('{0} {1} {2}' -f $latest.HotFixID, $latest.Description, $latest.InstalledOn) }
+                if ($latestSecurity) { $latestSecurityUpdate = ('{0} {1} {2}' -f $latestSecurity.HotFixID, $latestSecurity.Description, $latestSecurity.InstalledOn) }
+                $updateQueryStatus = 'Success'
+            }
+            catch {
+                $updateQueryStatus = $_.Exception.Message
+            }
         }
 
         [pscustomobject]@{
             Server                  = $serverName
-            Role                    = Get-ObjectValue -InputObject $server -PropertyName 'Role'
+            Role                    = $serverRole
             Status                  = Get-ObjectValue -InputObject $server -PropertyName 'Status'
             FarmBuild               = $farmBuild
             SharePointBuild         = $serverVersion
             NeedsUpgrade            = $needsUpgrade
             FarmRelativeStatus      = $farmRelativeStatus
-            LatestKnownBuild        = $effectiveLatestBuild
-            LatestKnownUpdateName   = $effectiveLatestUpdateName
-            LatestKnownKB           = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'KB'
-            LatestKnownReleaseDate  = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'ReleaseDate'
+            LatestKnownBuild        = if ($isInvalidRole) { '' } else { $effectiveLatestBuild }
+            LatestKnownUpdateName   = if ($isInvalidRole) { '' } else { $effectiveLatestUpdateName }
+            LatestKnownKB           = if ($isInvalidRole) { '' } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'KB' }
+            LatestKnownReleaseDate  = if ($isInvalidRole) { '' } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'ReleaseDate' }
             LatestKnownStatus       = $latestKnownStatus
-            MicrosoftLookupProduct  = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'Product'
-            MicrosoftLookupStatus   = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'LookupStatus'
-            MicrosoftLookupSource   = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'Source'
-            CacheLastRefresh        = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'CacheLastRefresh'
-            CachedUpdateCount       = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'CachedUpdateCount'
+            MicrosoftLookupProduct  = if ($isInvalidRole) { '' } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'Product' }
+            MicrosoftLookupStatus   = if ($isInvalidRole) { '' } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'LookupStatus' }
+            MicrosoftLookupSource   = if ($isInvalidRole) { '' } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'Source' }
+            CacheLastRefresh        = if ($isInvalidRole) { '' } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'CacheLastRefresh' }
+            CachedUpdateCount       = if ($isInvalidRole) { '' } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'CachedUpdateCount' }
             LatestInstalledUpdate   = $latestUpdate
             LatestSecurityUpdate    = $latestSecurityUpdate
             UpdateQueryStatus       = $updateQueryStatus
+        }
+    }
+}
+
+function Get-SPReportInstalledUpdates {
+    $servers = @(Get-SPServer | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'Role') -ne 'Invalid' } | Sort-Object Name)
+    foreach ($server in $servers) {
+        $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
+        try {
+            Get-HotFix -ComputerName $serverName -ErrorAction Stop | Sort-Object -Property InstalledOn, HotFixID -Descending | ForEach-Object {
+                [pscustomobject]@{
+                    Server      = $serverName
+                    Role        = Get-ObjectValue -InputObject $server -PropertyName 'Role'
+                    HotFixId    = $_.HotFixID
+                    Description = $_.Description
+                    InstalledBy = $_.InstalledBy
+                    InstalledOn = $_.InstalledOn
+                    Caption     = $_.Caption
+                    UpdateType  = if ($_.Description -match 'Security') { 'Security' } else { 'Update' }
+                }
+            }
+        }
+        catch {
+            [pscustomobject]@{
+                Server      = $serverName
+                Role        = Get-ObjectValue -InputObject $server -PropertyName 'Role'
+                HotFixId    = ''
+                Description = ''
+                InstalledBy = ''
+                InstalledOn = ''
+                Caption     = ''
+                UpdateType  = ('Error: {0}' -f $_.Exception.Message)
+            }
         }
     }
 }
@@ -1639,6 +1691,7 @@ try {
     $contentDatabases = Invoke-SafeCollect -Name 'Content databases' -ScriptBlock { Get-SPReportContentDatabases }
     $servicesOnServers = Invoke-SafeCollect -Name 'Services on servers' -ScriptBlock { Get-SPReportServicesOnServers }
     $farmServerUpdateStatus = Invoke-SafeCollect -Name 'Farm server update status' -ScriptBlock { Get-SPReportFarmServerUpdateStatus }
+    $installedUpdates = Invoke-SafeCollect -Name 'Installed updates on farm servers' -ScriptBlock { Get-SPReportInstalledUpdates }
     $cachedUpdateHistory = Invoke-SafeCollect -Name 'Cached SharePoint update history' -ScriptBlock { Get-SPReportCachedSharePointUpdateHistory }
 
     $versionValue = if (Test-ObjectProperty -InputObject $version[0] -PropertyName 'BuildVersion') { $version[0].BuildVersion } else { 'Unknown' }
@@ -1653,6 +1706,7 @@ try {
     Add-ReportSection -Title (Get-ReportText -Key 'FarmOverviewTitle') -Description (Get-ReportText -Key 'FarmOverviewDescription') -Data $farmOverview -Columns @('FarmId', 'Status', 'BuildVersion', 'ConfigurationDatabase', 'ConfigurationDatabaseSize', 'TimerServiceAccount', 'CentralAdministration') -Status (Get-SectionStatus -Data $farmOverview)
     Add-ReportSection -Title (Get-ReportText -Key 'ServersTitle') -Description (Get-ReportText -Key 'ServersDescription') -Data $servers -Columns @('Name', 'Role', 'ServerRole', 'CompliantWithMinRole', 'Address', 'Status', 'NeedsUpgrade', 'Version') -Status (Get-SectionStatus -Data $servers)
     Add-ReportSection -Title (Get-ReportText -Key 'FarmServerUpdatesTitle') -Description (Get-ReportText -Key 'FarmServerUpdatesDescription') -Data $farmServerUpdateStatus -Columns @('Server', 'Role', 'Status', 'FarmBuild', 'SharePointBuild', 'NeedsUpgrade', 'FarmRelativeStatus', 'LatestKnownBuild', 'LatestKnownUpdateName', 'LatestKnownKB', 'LatestKnownReleaseDate', 'LatestKnownStatus', 'MicrosoftLookupProduct', 'MicrosoftLookupStatus', 'MicrosoftLookupSource', 'CacheLastRefresh', 'CachedUpdateCount', 'LatestInstalledUpdate', 'LatestSecurityUpdate', 'UpdateQueryStatus') -Status (Get-SectionStatus -Data $farmServerUpdateStatus)
+    Add-ReportSection -Title (Get-ReportText -Key 'InstalledUpdatesTitle') -Description (Get-ReportText -Key 'InstalledUpdatesDescription') -Data $installedUpdates -Columns @('Server', 'Role', 'HotFixId', 'Description', 'InstalledBy', 'InstalledOn', 'Caption', 'UpdateType') -Status (Get-SectionStatus -Data $installedUpdates)
     Add-ReportSection -Title (Get-ReportText -Key 'UpdateCacheHistoryTitle') -Description (Get-ReportText -Key 'UpdateCacheHistoryDescription') -Data $cachedUpdateHistory -Columns @('Product', 'LatestBuild', 'UpdateName', 'KB', 'ReleaseDate', 'CacheFetchedAt', 'CacheSource') -Status (Get-SectionStatus -Data $cachedUpdateHistory)
     Add-ReportSection -Title (Get-ReportText -Key 'ServicesTitle') -Description (Get-ReportText -Key 'ServicesDescription') -Data $servicesOnServers -Columns @('Server', 'Service', 'Status', 'ServiceType', 'Id') -Status (Get-SectionStatus -Data $servicesOnServers)
     Add-ReportSection -Title (Get-ReportText -Key 'WebAppsTitle') -Description (Get-ReportText -Key 'WebAppsDescription') -Data $webApplications -Columns @('Name', 'Url', 'ApplicationPool', 'ApplicationPoolAccount', 'ClaimsAuthentication', 'AllowAnonymous', 'AuthenticationProvider', 'ContentDatabases', 'MaximumFileSizeMB', 'TimeZone', 'IsCentralAdministration') -Status (Get-SectionStatus -Data $webApplications)
