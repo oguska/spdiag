@@ -223,9 +223,9 @@ If Microsoft access fails:
 Servers with SharePoint role `Invalid`:
 
 - Are excluded from the main `Servers` section.
+- Are excluded from `Farm Server Update Status`.
 - Are excluded from Microsoft latest-build evaluation.
 - Are excluded from remote `Get-HotFix` checks.
-- Are still visible in `Farm Server Update Status` as excluded rows when returned by `Get-SPServer`.
 
 `Installed Updates On Farm Servers` lists all `Get-HotFix` entries for valid farm servers only.
 
@@ -247,7 +247,7 @@ Servers with SharePoint role `Invalid`:
 - Modified date
 - Rule ID
 
-When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If no remedy is available, the report includes fallback remediation guidance.
+Rows without actual finding data are filtered out. When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If no remedy is available but the finding has actionable data, the report includes fallback remediation guidance.
 
 ## Local Server Health
 

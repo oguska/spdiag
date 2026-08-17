@@ -152,6 +152,7 @@ $script:Translations = @{
         HealthAnalyzerDescription = 'Health Analyzer rules and configured severity.'
         HealthAnalyzerFindingsTitle = 'Unhealthy Health Analyzer Findings'
         HealthAnalyzerFindingsDescription = 'Current Health Analyzer findings from Central Administration with explanation, remedy, and possible solution guidance.'
+        HealthAnalyzerFallbackSolution = 'Review the rule in Central Administration, validate affected services/servers, then run the rule again after remediation.'
         SearchTopologyTitle = 'Search Topology'
         SearchTopologyDescription = 'Active enterprise search topology components.'
         InstalledFeaturesTitle = 'Installed Features'
@@ -224,6 +225,7 @@ $script:Translations = @{
         HealthAnalyzerDescription = 'Sağlık Çözümleyici kuralları ve yapılandırılmış önem derecesi.'
         HealthAnalyzerFindingsTitle = 'Sağlıksız Sağlık Çözümleyici Bulguları'
         HealthAnalyzerFindingsDescription = 'Central Administration üzerinden alınan geçerli Sağlık Çözümleyici bulguları; açıklama, çözüm ve olası çözüm önerileri ile birlikte.'
+        HealthAnalyzerFallbackSolution = 'Kuralı Central Administration üzerinden inceleyin, etkilenen servisleri/sunucuları doğrulayın ve düzeltme sonrası kuralı yeniden çalıştırın.'
         SearchTopologyTitle = 'Arama Topolojisi'
         SearchTopologyDescription = 'Etkin kurumsal arama topolojisi bileşenleri.'
         InstalledFeaturesTitle = 'Yüklü Özellikler'
@@ -1053,10 +1055,10 @@ function Get-SPReportFarmServerUpdateStatus {
     $latestKnownVersionNumber = ConvertTo-VersionNumber $effectiveLatestBuild
     $farmBuildVersionNumber = ConvertTo-VersionNumber $farmBuild
 
-    foreach ($server in $servers) {
+    foreach ($server in $activeFarmServers) {
         $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
         $serverRole = Get-ObjectValue -InputObject $server -PropertyName 'Role'
-        $isInvalidRole = $serverRole -eq 'Invalid'
+        $isInvalidRole = $false
         $serverVersion = Get-ObjectValue -InputObject $server -PropertyName 'Version'
         $serverVersionNumber = ConvertTo-VersionNumber $serverVersion
         $needsUpgrade = Get-ObjectValue -InputObject $server -PropertyName 'NeedsUpgrade'
@@ -1399,24 +1401,31 @@ function Get-SPReportHealthAnalyzerFindings {
 
         foreach ($item in $list.Items) {
             $title = Get-SPListItemFieldText -Item $item -FieldNames @('Title', 'Name')
+            $category = Get-SPListItemFieldText -Item $item -FieldNames @('Category', 'HealthReportCategory')
             $severity = Get-SPListItemFieldText -Item $item -FieldNames @('Severity', 'HealthReportSeverity')
             $currentStatus = Get-SPListItemFieldText -Item $item -FieldNames @('Status', 'HealthReportStatus')
             $explanation = Get-SPListItemFieldText -Item $item -FieldNames @('Explanation', 'HealthReportExplanation')
             $remedy = Get-SPListItemFieldText -Item $item -FieldNames @('Remedy', 'HealthReportRemedy')
-            $possibleSolution = if ($remedy) { $remedy } else { 'Review the rule in Central Administration, validate affected services/servers, then run the rule again after remediation.' }
+            $failingServers = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Servers', 'FailingServers', 'Failing_x0020_Servers')
+            $failingServices = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Services', 'FailingServices', 'Failing_x0020_Services')
+            $ruleId = Get-SPListItemFieldText -Item $item -FieldNames @('RuleId', 'Rule ID', 'HealthReportRuleId')
+            $hasFindingData = $severity -or $currentStatus -or $explanation -or $remedy -or $failingServers -or $failingServices -or $ruleId
+            if (-not $hasFindingData) { continue }
+
+            $possibleSolution = if ($remedy) { $remedy } else { Get-ReportText -Key 'HealthAnalyzerFallbackSolution' }
 
             [pscustomobject]@{
                 Title            = $title
-                Category         = Get-SPListItemFieldText -Item $item -FieldNames @('Category', 'HealthReportCategory')
+                Category         = $category
                 Severity         = $severity
                 CurrentStatus    = $currentStatus
                 Explanation      = $explanation
                 Remedy           = $remedy
                 PossibleSolution = $possibleSolution
-                FailingServers   = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Servers', 'FailingServers', 'Failing_x0020_Servers')
-                FailingServices  = Get-SPListItemFieldText -Item $item -FieldNames @('Failing Services', 'FailingServices', 'Failing_x0020_Services')
+                FailingServers   = $failingServers
+                FailingServices  = $failingServices
                 Modified         = Get-SPListItemFieldText -Item $item -FieldNames @('Modified')
-                RuleId           = Get-SPListItemFieldText -Item $item -FieldNames @('RuleId', 'Rule ID', 'HealthReportRuleId')
+                RuleId           = $ruleId
             }
         }
     }
