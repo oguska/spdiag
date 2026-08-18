@@ -209,9 +209,9 @@ The report includes these sections when available:
 
 `Farm Server Update Status` uses Central Administration `Manage Patch Status` as the preferred source for per-server SharePoint product patch versions. The script queries `/_admin/PatchStatus.aspx`, parses the Server/Product/Version/Install Status table, and uses the highest installed SharePoint product version per server for the `SharePointBuild` value.
 
-`SPServer.Version` is not a SharePoint product patch build. It is reported separately as `ConfigurationVersion` and is not used for patch comparison.
+`SPServer.Version` and `SPServer.NeedsUpgrade` are not used as SharePoint product patch indicators because they can be stale or misleading for per-server CU status.
 
-`ConfigurationUpgradeRequired` reflects SharePoint configuration/PSConfig upgrade state. It does not by itself mean that binaries or CUs are missing.
+Patch health is evaluated from Central Administration product install status and the Microsoft/latest-known build comparison.
 
 The script attempts to fetch latest update metadata from Microsoft Learn:
 
