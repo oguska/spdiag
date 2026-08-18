@@ -179,7 +179,8 @@ The report includes these sections when available:
 - Farm Overview
 - Servers
 - Farm Server Update Status
-- Installed Updates On Farm Servers
+- Central Administration Patch Status
+- Installed Windows Updates On Farm Servers
 - Cached SharePoint Update History
 - Services On Servers
 - Web Applications
@@ -206,7 +207,11 @@ The report includes these sections when available:
 
 ## Update And Patch Behavior
 
-`Farm Server Update Status` uses `Get-SPFarm.BuildVersion` to detect the installed SharePoint product and compare the farm with the latest known SharePoint CU/security update.
+`Farm Server Update Status` uses Central Administration `Manage Patch Status` as the preferred source for per-server SharePoint product patch versions. The script queries `/_admin/PatchStatus.aspx`, parses the Server/Product/Version/Install Status table, and uses the highest installed SharePoint product version per server for the `SharePointBuild` value.
+
+`SPServer.Version` is not a SharePoint product patch build. It is reported separately as `ConfigurationVersion` and is not used for patch comparison.
+
+`ConfigurationUpgradeRequired` reflects SharePoint configuration/PSConfig upgrade state. It does not by itself mean that binaries or CUs are missing.
 
 The script attempts to fetch latest update metadata from Microsoft Learn:
 
@@ -229,10 +234,11 @@ Servers with SharePoint role `Invalid`:
 
 - Are excluded from the main `Servers` section.
 - Are excluded from `Farm Server Update Status`.
+- Are excluded from `Central Administration Patch Status` comparisons.
 - Are excluded from Microsoft latest-build evaluation.
 - Are excluded from remote `Get-HotFix` checks.
 
-`Installed Updates On Farm Servers` lists all `Get-HotFix` entries for valid farm servers only.
+`Installed Windows Updates On Farm Servers` lists all `Get-HotFix` entries for valid farm servers only. This is Windows hotfix inventory and is not the authoritative SharePoint product patch version source.
 
 ## Health Analyzer Behavior
 
