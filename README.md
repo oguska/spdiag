@@ -17,7 +17,7 @@ The script is designed for Windows PowerShell 5.1 and the SharePoint Management 
 - Run with an account that has SharePoint farm administration permissions.
 - Windows PowerShell 5.1 is recommended.
 - The `Microsoft.SharePoint.PowerShell` snap-in must be registered on the server.
-- Some sections require local administrator or remote WMI/RPC permissions, especially IIS and remote hotfix inventory.
+- Some sections require local administrator or remote CIM/WMI/RPC permissions, especially server health, IIS, and remote hotfix inventory.
 - Internet access is optional and only used for Microsoft SharePoint update metadata lookup.
 
 ## Quick Start
@@ -185,7 +185,7 @@ The report includes these sections when available:
 - Services On Servers
 - Web Applications
 - Content Databases
-- Local Server Health
+- Local Server Health / Server Health
 - All SharePoint Databases
 - Service Applications
 - Service Application Proxies
@@ -260,12 +260,16 @@ Servers with SharePoint role `Invalid`:
 
 By default, this section uses fast Health Analyzer rule inventory fallback rows with remediation guidance and does not open the Central Administration Health Reports list. Use `-IncludeCentralAdminHealthReports` to read detailed Central Administration findings. When enabled, rows without actual finding data are filtered out, the script reads the 200 most recently modified report items, and it returns up to 50 finding rows. When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If Central Administration does not expose populated finding fields, the section falls back to Health Analyzer rule inventory rows with fallback remediation guidance instead of returning an empty table.
 
-## Local Server Health
+## Server Health
 
-`Local Server Health` reports only local fixed disks on the server where the script runs.
+`Local Server Health` is used for single-server farms. `Server Health` is used when the farm has more than one valid SharePoint server.
+
+For multi-server farms, the script probes every valid farm server with CIM and returns an error row for any server that cannot be queried.
 
 It includes:
 
+- Server role
+- Probe status
 - Operating system
 - OS version
 - Last boot time
@@ -276,6 +280,7 @@ It includes:
 - Free space
 - Free space percentage
 - Space status
+- Error details when a server probe fails
 
 Disk space status thresholds:
 
@@ -312,7 +317,7 @@ The script is stored as UTF-8 with BOM so Turkish characters render correctly in
 - Full scan is the default.
 - Site collection inventory can be slow on large farms.
 - Timer job and feature inventory sections can be large.
-- Remote `Get-HotFix` can be slow or fail if RPC/WMI/firewall permissions are restricted.
+- Remote server health and `Get-HotFix` queries can be slow or fail if CIM/WMI/RPC/firewall permissions are restricted.
 - IIS sections only report the local server where the script is executed.
 - Every section is collected independently. If one section fails, the error is shown in the report and remaining sections continue.
 
@@ -330,11 +335,11 @@ If Turkish characters look broken:
 - Ensure the script file is saved as UTF-8 with BOM.
 - Run in Windows PowerShell 5.1 or a console that supports UTF-8 output.
 
-If remote installed updates are missing:
+If remote server health or installed updates are missing:
 
-- Verify RPC/WMI firewall access.
-- Verify the executing account has permission to query remote hotfixes.
-- Check the `UpdateQueryStatus` column in the report.
+- Verify CIM/WMI/RPC firewall access.
+- Verify the executing account has permission to query remote servers.
+- Check the `ProbeStatus`, `Error`, `Details`, and `UpdateQueryStatus` columns in the report.
 
 If a section is empty:
 

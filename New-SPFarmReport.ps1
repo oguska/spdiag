@@ -131,6 +131,8 @@ $script:Translations = @{
         ContentDbDescription = 'Content database sizing, site counts, and upgrade indicators.'
         LocalHealthTitle = 'Local Server Health'
         LocalHealthDescription = 'Operating system, memory, processor, PowerShell version, and local fixed disk space analysis on the server where the script ran.'
+        ServerHealthTitle = 'Server Health'
+        ServerHealthDescription = 'Operating system, memory, processor, PowerShell version, and fixed disk space analysis for all valid farm servers.'
         AllDatabasesTitle = 'All SharePoint Databases'
         AllDatabasesDescription = 'All SharePoint databases registered in the configuration database.'
         ServiceApplicationsTitle = 'Service Applications'
@@ -208,6 +210,8 @@ $script:Translations = @{
         ContentDbDescription = 'İçerik veritabanı boyutları, site sayıları ve yükseltme göstergeleri.'
         LocalHealthTitle = 'Yerel Sunucu Sağlığı'
         LocalHealthDescription = 'Betiğin çalıştığı sunucuda işletim sistemi, bellek, işlemci, PowerShell sürümü ve yerel sabit disk alanı analizi.'
+        ServerHealthTitle = 'Sunucu Sağlığı'
+        ServerHealthDescription = 'Tüm geçerli farm sunucuları için işletim sistemi, bellek, işlemci, PowerShell sürümü ve sabit disk alanı analizi.'
         AllDatabasesTitle = 'Tüm SharePoint Veritabanları'
         AllDatabasesDescription = 'Yapılandırma veritabanına kayıtlı tüm SharePoint veritabanları.'
         ServiceApplicationsTitle = 'Servis Uygulamaları'
@@ -327,6 +331,7 @@ $script:ColumnTranslations = @{
         OSVersion = 'İS Sürümü'
         LastBootTime = 'Son Açılış Zamanı'
         PowerShellVersion = 'PowerShell Sürümü'
+        ProbeStatus = 'Sorgu Durumu'
         TotalMemory = 'Toplam Bellek'
         Processor = 'İşlemci'
         Drive = 'Sürücü'
@@ -1012,6 +1017,22 @@ function Test-CommandAvailable {
     return [bool](Get-Command -Name $Name -ErrorAction SilentlyContinue)
 }
 
+function Get-SPReportCimInstance {
+    param(
+        [string]$ComputerName,
+        [string]$ClassName,
+        [string]$Filter
+    )
+
+    $localNames = @($env:COMPUTERNAME, ([System.Net.Dns]::GetHostName())) | Where-Object { $_ } | ForEach-Object { $_.ToUpperInvariant() }
+    $target = ($ComputerName -split '\.')[0].ToUpperInvariant()
+    $parameters = @{ ClassName = $ClassName; ErrorAction = 'Stop' }
+    if ($Filter) { $parameters.Filter = $Filter }
+    if ($localNames -notcontains $target) { $parameters.ComputerName = $ComputerName }
+
+    Get-CimInstance @parameters
+}
+
 function Invoke-SafeCollect {
     param(
         [string]$Name,
@@ -1054,7 +1075,7 @@ function Add-ReportSection {
 function Get-SectionStatus {
     param([object[]]$Data)
 
-    if (@($Data | Where-Object { Test-ObjectProperty -InputObject $_ -PropertyName 'Error' }).Count -gt 0) { return 'Warning' }
+    if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') -and (Get-ObjectValue -InputObject $_ -PropertyName 'Error') }).Count -gt 0) { return 'Warning' }
     if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'InstallStatus') -and (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus') -ne 'Installed' }).Count -gt 0) { return 'Warning' }
     if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'ProductInstallStatus') -and (Get-ObjectValue -InputObject $_ -PropertyName 'ProductInstallStatus') -eq 'Issues detected' }).Count -gt 0) { return 'Warning' }
     if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'LatestKnownStatus') -and (Get-ObjectValue -InputObject $_ -PropertyName 'LatestKnownStatus') -eq 'Below latest known build' }).Count -gt 0) { return 'Warning' }
@@ -1155,29 +1176,89 @@ function Get-SPReportServicesOnServers {
 }
 
 function Get-SPReportLocalServerHealth {
-    $os = Get-CimInstance -ClassName Win32_OperatingSystem
-    $computer = Get-CimInstance -ClassName Win32_ComputerSystem
-    $processor = Get-CimInstance -ClassName Win32_Processor | Select-Object -First 1
-    $disks = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" | Sort-Object DeviceID
+    $servers = @(Get-SPServer | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'Role') -ne 'Invalid' } | Sort-Object Name)
 
-    foreach ($disk in $disks) {
-        $freePercent = if ($disk.Size -gt 0) { [math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2) } else { 0 }
-        [pscustomobject]@{
-            Server             = $env:COMPUTERNAME
-            OperatingSystem    = $os.Caption
-            OSVersion          = $os.Version
-            LastBootTime       = $os.LastBootUpTime
-            PowerShellVersion  = $PSVersionTable.PSVersion.ToString()
-            TotalMemory        = Format-ByteSize $computer.TotalPhysicalMemory
-            Processor          = $processor.Name
-            Drive              = $disk.DeviceID
-            DriveType          = Get-DiskTypeName $disk.DriveType
-            VolumeName         = $disk.VolumeName
-            FileSystem         = $disk.FileSystem
-            DriveSize          = Format-ByteSize $disk.Size
-            DriveFree          = Format-ByteSize $disk.FreeSpace
-            DriveFreePercent   = ('{0:N2}%' -f $freePercent)
-            SpaceStatus        = Get-DiskSpaceStatus $freePercent
+    foreach ($server in $servers) {
+        $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
+        $serverRole = Get-ObjectValue -InputObject $server -PropertyName 'Role'
+        try {
+            $os = Get-SPReportCimInstance -ComputerName $serverName -ClassName 'Win32_OperatingSystem'
+            $computer = Get-SPReportCimInstance -ComputerName $serverName -ClassName 'Win32_ComputerSystem'
+            $processor = Get-SPReportCimInstance -ComputerName $serverName -ClassName 'Win32_Processor' | Select-Object -First 1
+            $disks = @(Get-SPReportCimInstance -ComputerName $serverName -ClassName 'Win32_LogicalDisk' -Filter 'DriveType=3' | Sort-Object DeviceID)
+
+            if ($disks.Count -eq 0) {
+                [pscustomobject]@{
+                    Server            = $serverName
+                    Role              = $serverRole
+                    ProbeStatus       = 'No fixed disks returned'
+                    OperatingSystem   = Get-ObjectValue -InputObject $os -PropertyName 'Caption'
+                    OSVersion         = Get-ObjectValue -InputObject $os -PropertyName 'Version'
+                    LastBootTime      = Get-ObjectValue -InputObject $os -PropertyName 'LastBootUpTime'
+                    PowerShellVersion = if (($serverName -split '\.')[0] -eq $env:COMPUTERNAME) { $PSVersionTable.PSVersion.ToString() } else { '' }
+                    TotalMemory       = Format-ByteSize (Get-ObjectValue -InputObject $computer -PropertyName 'TotalPhysicalMemory')
+                    Processor         = Get-ObjectValue -InputObject $processor -PropertyName 'Name'
+                    Drive             = ''
+                    DriveType         = ''
+                    VolumeName        = ''
+                    FileSystem        = ''
+                    DriveSize         = ''
+                    DriveFree         = ''
+                    DriveFreePercent  = ''
+                    SpaceStatus       = 'Unknown'
+                    Error             = ''
+                    Details           = ''
+                }
+                continue
+            }
+
+            foreach ($disk in $disks) {
+                $freePercent = if ($disk.Size -gt 0) { [math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2) } else { 0 }
+                [pscustomobject]@{
+                    Server            = $serverName
+                    Role              = $serverRole
+                    ProbeStatus       = 'Success'
+                    OperatingSystem   = $os.Caption
+                    OSVersion         = $os.Version
+                    LastBootTime      = $os.LastBootUpTime
+                    PowerShellVersion = if (($serverName -split '\.')[0] -eq $env:COMPUTERNAME) { $PSVersionTable.PSVersion.ToString() } else { '' }
+                    TotalMemory       = Format-ByteSize $computer.TotalPhysicalMemory
+                    Processor         = $processor.Name
+                    Drive             = $disk.DeviceID
+                    DriveType         = Get-DiskTypeName $disk.DriveType
+                    VolumeName        = $disk.VolumeName
+                    FileSystem        = $disk.FileSystem
+                    DriveSize         = Format-ByteSize $disk.Size
+                    DriveFree         = Format-ByteSize $disk.FreeSpace
+                    DriveFreePercent  = ('{0:N2}%' -f $freePercent)
+                    SpaceStatus       = Get-DiskSpaceStatus $freePercent
+                    Error             = ''
+                    Details           = ''
+                }
+            }
+        }
+        catch {
+            [pscustomobject]@{
+                Server            = $serverName
+                Role              = $serverRole
+                ProbeStatus       = 'Failed'
+                OperatingSystem   = ''
+                OSVersion         = ''
+                LastBootTime      = ''
+                PowerShellVersion = ''
+                TotalMemory       = ''
+                Processor         = ''
+                Drive             = ''
+                DriveType         = ''
+                VolumeName        = ''
+                FileSystem        = ''
+                DriveSize         = ''
+                DriveFree         = ''
+                DriveFreePercent  = ''
+                SpaceStatus       = 'Unknown'
+                Error             = $_.Exception.Message
+                Details           = $_.ScriptStackTrace
+            }
         }
     }
 }
@@ -1954,7 +2035,9 @@ try {
     Add-ReportSection -Title (Get-ReportText -Key 'WebAppsTitle') -Description (Get-ReportText -Key 'WebAppsDescription') -Data $webApplications -Columns @('Name', 'Url', 'ApplicationPool', 'ApplicationPoolAccount', 'ClaimsAuthentication', 'AllowAnonymous', 'AuthenticationProvider', 'ContentDatabases', 'MaximumFileSizeMB', 'TimeZone', 'IsCentralAdministration') -Status (Get-SectionStatus -Data $webApplications)
     Add-ReportSection -Title (Get-ReportText -Key 'ContentDbTitle') -Description (Get-ReportText -Key 'ContentDbDescription') -Data $contentDatabases -Columns @('Name', 'WebApplication', 'Server', 'Status', 'CurrentSiteCount', 'WarningSiteCount', 'MaximumSiteCount', 'DiskSizeRequired', 'NeedsUpgrade', 'Id') -Status (Get-SectionStatus -Data $contentDatabases)
 
-    Add-SectionFromCollector -Title (Get-ReportText -Key 'LocalHealthTitle') -Description (Get-ReportText -Key 'LocalHealthDescription') -Collector { Get-SPReportLocalServerHealth } -Columns @('Server', 'OperatingSystem', 'OSVersion', 'LastBootTime', 'PowerShellVersion', 'TotalMemory', 'Processor', 'Drive', 'DriveType', 'VolumeName', 'FileSystem', 'DriveSize', 'DriveFree', 'DriveFreePercent', 'SpaceStatus')
+    $healthTitleKey = if (@($servers | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') }).Count -gt 1) { 'ServerHealthTitle' } else { 'LocalHealthTitle' }
+    $healthDescriptionKey = if ($healthTitleKey -eq 'ServerHealthTitle') { 'ServerHealthDescription' } else { 'LocalHealthDescription' }
+    Add-SectionFromCollector -Title (Get-ReportText -Key $healthTitleKey) -Description (Get-ReportText -Key $healthDescriptionKey) -Collector { Get-SPReportLocalServerHealth } -Columns @('Server', 'Role', 'ProbeStatus', 'OperatingSystem', 'OSVersion', 'LastBootTime', 'PowerShellVersion', 'TotalMemory', 'Processor', 'Drive', 'DriveType', 'VolumeName', 'FileSystem', 'DriveSize', 'DriveFree', 'DriveFreePercent', 'SpaceStatus', 'Error', 'Details')
     Add-SectionFromCollector -Title (Get-ReportText -Key 'AllDatabasesTitle') -Description (Get-ReportText -Key 'AllDatabasesDescription') -Collector { Get-SPReportDatabases } -Columns @('Name', 'TypeName', 'Server', 'Status', 'DiskSizeRequired', 'NeedsUpgrade', 'Id')
     Add-SectionFromCollector -Title (Get-ReportText -Key 'ServiceApplicationsTitle') -Description (Get-ReportText -Key 'ServiceApplicationsDescription') -Collector { Get-SPReportServiceApplications } -Columns @('Name', 'TypeName', 'Status', 'ApplicationPool', 'Id')
     Add-SectionFromCollector -Title (Get-ReportText -Key 'ServiceApplicationProxiesTitle') -Description (Get-ReportText -Key 'ServiceApplicationProxiesDescription') -Collector { Get-SPReportServiceApplicationProxies } -Columns @('Name', 'TypeName', 'Status', 'IsConnected', 'ServiceApplication', 'Id')
