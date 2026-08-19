@@ -267,7 +267,6 @@ $script:ColumnTranslations = @{
         CentralAdministration = 'Merkezi Yönetim'
         Name = 'Ad'
         Role = 'Rol'
-        ServerRole = 'Sunucu Rolü'
         CompliantWithMinRole = 'MinRole Uyumlu'
         Address = 'Adres'
         NeedsUpgrade = 'Yükseltme Gerekli'
@@ -1313,7 +1312,6 @@ function Get-SPReportServers {
             Address          = $_.Address
             Status           = $_.Status
             SharePointBuild = $farmBuild
-            ServerRole       = Get-ObjectValue $_ 'ServerRole'
             CompliantWithMinRole = Get-ObjectValue $_ 'CompliantWithMinRole'
         }
     }
@@ -2227,7 +2225,7 @@ try {
 
     Add-ReportSection -Title (Get-ReportText -Key 'FarmVersionTitle') -Description (Get-ReportText -Key 'FarmVersionDescription') -Data $version -Columns @('Product', 'BuildVersion', 'FarmId', 'Configuration', 'Status') -Status (Get-SectionStatus -Data $version)
     Add-ReportSection -Title (Get-ReportText -Key 'FarmOverviewTitle') -Description (Get-ReportText -Key 'FarmOverviewDescription') -Data $farmOverview -Columns @('FarmId', 'Status', 'BuildVersion', 'ConfigurationDatabase', 'ConfigurationDatabaseSize', 'TimerServiceAccount', 'CentralAdministration') -Status (Get-SectionStatus -Data $farmOverview)
-    Add-ReportSection -Title (Get-ReportText -Key 'ServersTitle') -Description (Get-ReportText -Key 'ServersDescription') -Data $servers -Columns @('Name', 'Role', 'ServerRole', 'CompliantWithMinRole', 'Address', 'Status', 'SharePointBuild') -Status (Get-SectionStatus -Data $servers)
+    Add-ReportSection -Title (Get-ReportText -Key 'ServersTitle') -Description (Get-ReportText -Key 'ServersDescription') -Data $servers -Columns @('Name', 'Role', 'CompliantWithMinRole', 'Address', 'Status', 'SharePointBuild') -Status (Get-SectionStatus -Data $servers)
     Add-ReportSection -Title (Get-ReportText -Key 'FarmServerUpdatesTitle') -Description (Get-ReportText -Key 'FarmServerUpdatesDescription') -Data $farmServerUpdateStatus -Columns @('Server', 'Role', 'Status', 'FarmBuild', 'SharePointBuild', 'InstalledSharePointUpdate', 'InstalledSharePointKB', 'InstalledSharePointReleaseDate', 'PatchStatusSource', 'LatestKnownBuild', 'LatestKnownUpdateName', 'LatestKnownKB', 'LatestKnownReleaseDate', 'LatestKnownStatus', 'MicrosoftLookupProduct', 'MicrosoftLookupStatus', 'MicrosoftLookupSource', 'CacheLastRefresh', 'CachedUpdateCount', 'WindowsSharePointUpdate', 'LatestWindowsUpdate', 'LatestWindowsSecurityUpdate', 'UpdateQueryStatus') -Status (Get-SectionStatus -Data $farmServerUpdateStatus)
     Add-ReportSection -Title (Get-ReportText -Key 'CentralAdminPatchStatusTitle') -Description (Get-ReportText -Key 'CentralAdminPatchStatusDescription') -Data $centralAdminPatchStatus -Columns @('Server', 'Product', 'Version', 'InstallStatus', 'Source', 'Error', 'Details') -Status (Get-SectionStatus -Data $centralAdminPatchStatus)
     Add-ReportSection -Title (Get-ReportText -Key 'InstalledUpdatesTitle') -Description (Get-ReportText -Key 'InstalledUpdatesDescription') -Data $installedUpdates -Columns @('Server', 'Role', 'HotFixId', 'Description', 'InstalledBy', 'InstalledOn', 'Caption', 'UpdateType') -Status (Get-SectionStatus -Data $installedUpdates)
