@@ -207,13 +207,17 @@ The report includes these sections when available:
 
 ## Update And Patch Behavior
 
-`Farm Server Update Status` uses `Get-SPProduct -Server` as the preferred source for per-server SharePoint product/update versions. It uses the highest installed SharePoint product version per server for the `SharePointBuild` value.
+`Farm Server Update Status` uses farm-level `Get-SPProduct` server status as the preferred source for per-server SharePoint product action state. `InstallStatus` values such as `NoActionRequired` are reported directly because they show whether SharePoint expects another install/configuration action on that server.
+
+When per-server product versions are available, the script uses the highest installed SharePoint product version per server for the `SharePointBuild` value. If farm-level `Get-SPProduct` only returns server action state, the farm build is used for the build column.
 
 If `Get-SPProduct` cannot return product data for a server, the script falls back to Central Administration `Manage Patch Status`. It queries `/_admin/PatchStatus.aspx`, parses the Server/Product/Version/Install Status table, and uses those rows when available.
 
 `SPServer.Version` and `SPServer.NeedsUpgrade` are not used as SharePoint product patch indicators because they can be stale or misleading for per-server CU status.
 
 Patch health is evaluated from SharePoint product install status and the Microsoft/latest-known build comparison.
+
+The installed SharePoint KB is resolved by matching `SharePointBuild` to the cached Microsoft SharePoint update history. The script also checks `Get-HotFix` for that KB and reports whether Windows Update/Quick Fix Engineering returned it for the server.
 
 The script attempts to fetch latest update metadata from Microsoft Learn:
 
