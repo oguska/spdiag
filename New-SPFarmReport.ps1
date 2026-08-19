@@ -116,7 +116,7 @@ $script:Translations = @{
         ServersTitle = 'Servers'
         ServersDescription = 'Servers joined to the farm and role/configuration indicators.'
         FarmServerUpdatesTitle = 'Farm Server Update Status'
-        FarmServerUpdatesDescription = 'SharePoint patch build, product install status, configuration upgrade state, and latest installed Windows update indicators per farm server. Central Administration Patch Status is used as the preferred source when available.'
+        FarmServerUpdatesDescription = 'SharePoint product/update build and latest installed Windows update indicators per farm server. Get-SPProduct is used first; Central Administration Patch Status is used as fallback.'
         CentralAdminPatchStatusTitle = 'Central Administration Patch Status'
         CentralAdminPatchStatusDescription = 'Product patch status from Central Administration Manage Patch Status.'
         InstalledUpdatesTitle = 'Installed Windows Updates On Farm Servers'
@@ -195,7 +195,7 @@ $script:Translations = @{
         ServersTitle = 'Sunucular'
         ServersDescription = 'Farma bağlı sunucular ve rol/yapılandırma göstergeleri.'
         FarmServerUpdatesTitle = 'Farm Sunucu Güncelleme Durumu'
-        FarmServerUpdatesDescription = 'Farm sunucuları için SharePoint yama derlemesi, ürün kurulum durumu, yapılandırma yükseltme durumu ve en son yüklü Windows güncelleme göstergeleri. Varsa tercih edilen kaynak Central Administration Patch Status bilgisidir.'
+        FarmServerUpdatesDescription = 'Farm sunucuları için SharePoint ürün/güncelleme derlemesi ve en son yüklü Windows güncelleme göstergeleri. Önce Get-SPProduct kullanılır; gerekirse Central Administration Patch Status yedek kaynak olarak kullanılır.'
         CentralAdminPatchStatusTitle = 'Central Administration Yama Durumu'
         CentralAdminPatchStatusDescription = 'Central Administration Manage Patch Status üzerinden ürün yama durumu.'
         InstalledUpdatesTitle = 'Farm Sunucularındaki Yüklü Windows Güncellemeleri'
@@ -580,6 +580,105 @@ function ConvertFrom-PatchStatusHtml {
     }
 
     return @($rows)
+}
+
+function ConvertFrom-SPProductRecord {
+    param(
+        [object]$Product,
+        [string]$ServerName,
+        [string]$Source
+    )
+
+    $productName = Get-ObjectValue -InputObject $Product -PropertyName 'DisplayName'
+    if (-not $productName) { $productName = Get-ObjectValue -InputObject $Product -PropertyName 'Name' }
+    if (-not $productName) { $productName = Get-ObjectValue -InputObject $Product -PropertyName 'ProductName' }
+    if (-not $productName) { $productName = Get-ObjectValue -InputObject $Product -PropertyName 'PatchableUnitDisplayName' }
+    if (-not $productName) { $productName = ConvertFrom-HtmlFragmentText $Product.ToString() }
+
+    $version = Get-ObjectValue -InputObject $Product -PropertyName 'Version'
+    if (-not $version) { $version = Get-ObjectValue -InputObject $Product -PropertyName 'ProductVersion' }
+    if (-not $version) { $version = Get-ObjectValue -InputObject $Product -PropertyName 'BuildVersion' }
+    if (-not $version) { $version = Get-ObjectValue -InputObject $Product -PropertyName 'PatchVersion' }
+    if (-not $version) { $version = Get-LatestVersionFromText $Product.ToString() }
+
+    $installStatus = Get-ObjectValue -InputObject $Product -PropertyName 'InstallStatus'
+    if (-not $installStatus) { $installStatus = Get-ObjectValue -InputObject $Product -PropertyName 'Status' }
+    if (-not $installStatus) { $installStatus = if ($version) { 'Installed' } else { 'Unknown' } }
+
+    [pscustomobject]@{
+        Server        = $ServerName
+        Product       = $productName
+        Version       = $version
+        InstallStatus = $installStatus
+        Source        = $Source
+    }
+}
+
+function Test-SPReportInstalledStatus {
+    param([AllowNull()][object]$Status)
+
+    $text = ([string]$Status).Trim()
+    return ($text -eq 'Installed' -or $text -eq 'Online' -or $text -eq 'Success')
+}
+
+function Get-SPReportProductPatchStatus {
+    $cached = Get-Variable -Name 'ProductPatchStatusRows' -Scope Script -ErrorAction SilentlyContinue
+    if ($cached) { return @($cached.Value) }
+
+    if (-not (Test-CommandAvailable -Name 'Get-SPProduct')) {
+        $result = @([pscustomobject]@{ Error = 'Get-SPProduct is not available in this environment.'; Details = '' })
+        Set-Variable -Name 'ProductPatchStatusRows' -Scope Script -Value $result
+        return $result
+    }
+
+    $rows = New-Object System.Collections.ArrayList
+    $servers = @(Get-SPServer | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'Role') -ne 'Invalid' } | Sort-Object Name)
+    foreach ($server in $servers) {
+        $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
+        $source = 'Get-SPProduct -Server'
+        try {
+            $products = @(Get-SPProduct -Server $serverName -ErrorAction Stop)
+            if ($products.Count -eq 0) {
+                [void]$rows.Add([pscustomobject]@{
+                    Server        = $serverName
+                    Product       = ''
+                    Version       = ''
+                    InstallStatus = 'No products returned'
+                    Source        = $source
+                })
+                continue
+            }
+
+            foreach ($product in $products) {
+                [void]$rows.Add((ConvertFrom-SPProductRecord -Product $product -ServerName $serverName -Source $source))
+            }
+        }
+        catch {
+            [void]$rows.Add([pscustomobject]@{
+                Server  = $serverName
+                Error   = 'Get-SPProduct could not be queried.'
+                Details = ('{0}: {1}' -f $source, $_.Exception.Message)
+            })
+        }
+    }
+
+    $result = @($rows)
+    Set-Variable -Name 'ProductPatchStatusRows' -Scope Script -Value $result
+    return $result
+}
+
+function Get-SPReportProductPatchFallbackRows {
+    param([string]$Reason)
+
+    @(Get-SPReportProductPatchStatus) | Where-Object { -not ((Test-ObjectProperty -InputObject $_ -PropertyName 'Error') -and (Get-ObjectValue -InputObject $_ -PropertyName 'Error')) } | ForEach-Object {
+        [pscustomobject]@{
+            Server        = Get-ObjectValue -InputObject $_ -PropertyName 'Server'
+            Product       = Get-ObjectValue -InputObject $_ -PropertyName 'Product'
+            Version       = Get-ObjectValue -InputObject $_ -PropertyName 'Version'
+            InstallStatus = Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus'
+            Source        = ('Get-SPProduct fallback; {0}' -f $Reason)
+        }
+    }
 }
 
 function Read-SPReportUpdateCache {
@@ -1143,16 +1242,19 @@ function Get-SPReportCentralAdminPatchStatus {
     $patchStatusUrl = '{0}/_admin/PatchStatus.aspx' -f $adminUrl
 
     try {
-        $response = Invoke-WebRequest -Uri $patchStatusUrl -UseDefaultCredentials -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+        $response = Invoke-WebRequest -Uri $patchStatusUrl -UseDefaultCredentials -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
         $rows = @(ConvertFrom-PatchStatusHtml -Html $response.Content -Source $patchStatusUrl)
         if ($rows.Count -eq 0) {
-            $rows = @([pscustomobject]@{ Error = 'Central Administration Patch Status returned no parseable product rows.'; Details = $patchStatusUrl })
+            $fallbackRows = @(Get-SPReportProductPatchFallbackRows -Reason ('Central Administration Patch Status returned no parseable product rows from {0}' -f $patchStatusUrl))
+            $rows = if ($fallbackRows.Count -gt 0) { $fallbackRows } else { @([pscustomobject]@{ Error = 'Central Administration Patch Status returned no parseable product rows.'; Details = $patchStatusUrl }) }
         }
         Set-Variable -Name 'CentralAdminPatchStatusRows' -Scope Script -Value $rows
         return $rows
     }
     catch {
-        $result = @([pscustomobject]@{ Error = 'Central Administration Patch Status could not be queried.'; Details = ('{0}: {1}' -f $patchStatusUrl, $_.Exception.Message) })
+        $details = ('{0}: {1}' -f $patchStatusUrl, $_.Exception.Message)
+        $fallbackRows = @(Get-SPReportProductPatchFallbackRows -Reason ('Central Administration Patch Status could not be queried. {0}' -f $details))
+        $result = if ($fallbackRows.Count -gt 0) { $fallbackRows } else { @([pscustomobject]@{ Error = 'Central Administration Patch Status could not be queried.'; Details = $details }) }
         Set-Variable -Name 'CentralAdminPatchStatusRows' -Scope Script -Value $result
         return $result
     }
@@ -1262,9 +1364,11 @@ function Get-SPReportLocalServerHealth {
 function Get-SPReportFarmServerUpdateStatus {
     $farmBuild = (Get-SPFarm).BuildVersion.ToString()
     $activeFarmServers = @(Get-SPServer | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'Role') -ne 'Invalid' } | Sort-Object Name)
+    $productPatchRows = @(Get-SPReportProductPatchStatus)
+    $productPatchRowsWithoutErrors = @($productPatchRows | Where-Object { -not ((Test-ObjectProperty -InputObject $_ -PropertyName 'Error') -and (Get-ObjectValue -InputObject $_ -PropertyName 'Error')) })
     $patchStatusRows = @(Get-SPReportCentralAdminPatchStatus)
-    $patchStatusError = $patchStatusRows | Where-Object { Test-ObjectProperty -InputObject $_ -PropertyName 'Error' } | Select-Object -First 1
-    $patchStatusProductRows = @($patchStatusRows | Where-Object { -not (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') })
+    $patchStatusError = $patchStatusRows | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') -and (Get-ObjectValue -InputObject $_ -PropertyName 'Error') } | Select-Object -First 1
+    $patchStatusProductRows = @($patchStatusRows | Where-Object { -not ((Test-ObjectProperty -InputObject $_ -PropertyName 'Error') -and (Get-ObjectValue -InputObject $_ -PropertyName 'Error')) })
 
     $microsoftLatest = Get-SPReportMicrosoftLatestSharePointUpdate -InstalledBuild $farmBuild
     $effectiveLatestBuild = if ($LatestKnownSharePointBuild) { $LatestKnownSharePointBuild } else { Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'LatestBuild' }
@@ -1279,7 +1383,12 @@ function Get-SPReportFarmServerUpdateStatus {
             $patchServer = Get-ObjectValue -InputObject $_ -PropertyName 'Server'
             $patchServer -eq $serverName -or $patchServer -eq $serverShortName
         })
-        $installedPatchRows = @($serverPatchRows | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus') -eq 'Installed' -and (Get-ObjectValue -InputObject $_ -PropertyName 'Version') })
+        $serverProductRows = @($productPatchRowsWithoutErrors | Where-Object {
+            $productServer = Get-ObjectValue -InputObject $_ -PropertyName 'Server'
+            $productServer -eq $serverName -or $productServer -eq $serverShortName
+        })
+        $serverVersionRows = if ($serverProductRows.Count -gt 0) { $serverProductRows } else { $serverPatchRows }
+        $installedPatchRows = @($serverVersionRows | Where-Object { (Test-SPReportInstalledStatus (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus')) -and (Get-ObjectValue -InputObject $_ -PropertyName 'Version') })
         $latestServerPatchRow = $installedPatchRows | Sort-Object { ConvertTo-VersionNumber (Get-ObjectValue -InputObject $_ -PropertyName 'Version') } -Descending | Select-Object -First 1
         $serverBuild = Get-ObjectValue -InputObject $latestServerPatchRow -PropertyName 'Version'
         if (-not $serverBuild) { $serverBuild = $farmBuild }
@@ -1287,13 +1396,18 @@ function Get-SPReportFarmServerUpdateStatus {
 
         $productInstallStatus = 'Not available'
         $patchStatusSource = 'Farm build fallback'
-        if ($patchStatusError) {
-            $patchStatusSource = Get-ObjectValue -InputObject $patchStatusError -PropertyName 'Details'
+        if ($serverProductRows.Count -gt 0) {
+            $notInstalled = @($serverProductRows | Where-Object { -not (Test-SPReportInstalledStatus (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus')) })
+            $productInstallStatus = if ($notInstalled.Count -gt 0) { 'Issues detected' } else { 'Installed' }
+            $patchStatusSource = 'Get-SPProduct -Server'
         }
         elseif ($serverPatchRows.Count -gt 0) {
-            $notInstalled = @($serverPatchRows | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus') -ne 'Installed' })
+            $notInstalled = @($serverPatchRows | Where-Object { -not (Test-SPReportInstalledStatus (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus')) })
             $productInstallStatus = if ($notInstalled.Count -gt 0) { 'Issues detected' } else { 'Installed' }
             $patchStatusSource = 'Central Administration Patch Status'
+        }
+        elseif ($patchStatusError) {
+            $patchStatusSource = Get-ObjectValue -InputObject $patchStatusError -PropertyName 'Details'
         }
 
         $farmRelativeStatus = 'Patch status not available; farm build used'
@@ -1302,7 +1416,7 @@ function Get-SPReportFarmServerUpdateStatus {
         $latestSecurityUpdate = ''
         $updateQueryStatus = 'Not queried'
 
-        if ($serverPatchRows.Count -gt 0) {
+        if ($serverProductRows.Count -gt 0 -or $serverPatchRows.Count -gt 0) {
             if ($productInstallStatus -eq 'Installed') { $farmRelativeStatus = 'Patch installed' }
             else { $farmRelativeStatus = 'Patch install issue detected' }
         }

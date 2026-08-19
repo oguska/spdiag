@@ -207,11 +207,13 @@ The report includes these sections when available:
 
 ## Update And Patch Behavior
 
-`Farm Server Update Status` uses Central Administration `Manage Patch Status` as the preferred source for per-server SharePoint product patch versions. The script queries `/_admin/PatchStatus.aspx`, parses the Server/Product/Version/Install Status table, and uses the highest installed SharePoint product version per server for the `SharePointBuild` value.
+`Farm Server Update Status` uses `Get-SPProduct -Server` as the preferred source for per-server SharePoint product/update versions. It uses the highest installed SharePoint product version per server for the `SharePointBuild` value.
+
+If `Get-SPProduct` cannot return product data for a server, the script falls back to Central Administration `Manage Patch Status`. It queries `/_admin/PatchStatus.aspx`, parses the Server/Product/Version/Install Status table, and uses those rows when available.
 
 `SPServer.Version` and `SPServer.NeedsUpgrade` are not used as SharePoint product patch indicators because they can be stale or misleading for per-server CU status.
 
-Patch health is evaluated from Central Administration product install status and the Microsoft/latest-known build comparison.
+Patch health is evaluated from SharePoint product install status and the Microsoft/latest-known build comparison.
 
 The script attempts to fetch latest update metadata from Microsoft Learn:
 
