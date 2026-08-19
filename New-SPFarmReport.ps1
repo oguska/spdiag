@@ -279,11 +279,9 @@ $script:ColumnTranslations = @{
         InstalledSharePointKB = 'Yüklü SharePoint KB'
         InstalledSharePointReleaseDate = 'Yüklü SharePoint Yayın Tarihi'
         WindowsSharePointUpdate = 'Windows Update SharePoint Kaydı'
-        ProductInstallStatus = 'Ürün Kurulum Durumu'
         PatchStatusSource = 'Yama Durumu Kaynağı'
         InstallStatus = 'Kurulum Durumu'
         Source = 'Kaynak'
-        FarmRelativeStatus = 'Farma Göre Durum'
         LatestKnownBuild = 'Bilinen En Güncel Derleme'
         LatestKnownUpdateName = 'Bilinen En Güncel Güncelleme'
         LatestKnownKB = 'Bilinen En Güncel KB'
@@ -663,13 +661,24 @@ function Get-SPReportProductPatchStatus {
     $rows = New-Object System.Collections.ArrayList
     $servers = @(Get-SPServer | Where-Object { (Get-ObjectValue -InputObject $_ -PropertyName 'Role') -ne 'Invalid' } | Sort-Object Name)
     try {
-        foreach ($farmProduct in @(Get-SPProduct -ErrorAction Stop)) {
-            foreach ($serverProduct in @(Get-ObjectValue -InputObject $farmProduct -PropertyName 'Servers')) {
-                if (-not $serverProduct) { continue }
-                $row = ConvertFrom-SPProductServerRecord -ServerProduct $serverProduct -Source 'Get-SPProduct farm Servers'
-                $rowServer = Get-ObjectValue -InputObject $row -PropertyName 'Server'
-                if (-not $rowServer) { continue }
-                [void]$rows.Add($row)
+        $farmProducts = @(Get-SPProduct -ErrorAction Stop)
+        foreach ($serverProduct in @($farmProducts.Servers)) {
+            if (-not $serverProduct) { continue }
+            $row = ConvertFrom-SPProductServerRecord -ServerProduct $serverProduct -Source 'Get-SPProduct farm Servers'
+            $rowServer = Get-ObjectValue -InputObject $row -PropertyName 'Server'
+            if (-not $rowServer) { continue }
+            [void]$rows.Add($row)
+        }
+
+        if ($rows.Count -eq 0) {
+            foreach ($farmProduct in $farmProducts) {
+                foreach ($serverProduct in @(Get-ObjectValue -InputObject $farmProduct -PropertyName 'Servers')) {
+                    if (-not $serverProduct) { continue }
+                    $row = ConvertFrom-SPProductServerRecord -ServerProduct $serverProduct -Source 'Get-SPProduct farm Servers'
+                    $rowServer = Get-ObjectValue -InputObject $row -PropertyName 'Server'
+                    if (-not $rowServer) { continue }
+                    [void]$rows.Add($row)
+                }
             }
         }
     }
@@ -682,6 +691,7 @@ function Get-SPReportProductPatchStatus {
     }
 
     $farmServerRows = @($rows | Where-Object { -not ((Test-ObjectProperty -InputObject $_ -PropertyName 'Error') -and (Get-ObjectValue -InputObject $_ -PropertyName 'Error')) })
+    $farmServerRows = @($farmServerRows | Where-Object { Get-ObjectValue -InputObject $_ -PropertyName 'Server' })
     foreach ($server in $servers) {
         $serverName = Get-ObjectValue -InputObject $server -PropertyName 'Name'
         $serverShortName = ($serverName -split '\.')[0]
@@ -722,7 +732,6 @@ function Get-SPReportProductPatchStatus {
     Set-Variable -Name 'ProductPatchStatusRows' -Scope Script -Value $result
     return $result
 }
-
 function Get-SPReportProductPatchFallbackRows {
     param([string]$Reason)
 
@@ -1257,8 +1266,7 @@ function Get-SectionStatus {
     param([object[]]$Data)
 
     if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'Error') -and (Get-ObjectValue -InputObject $_ -PropertyName 'Error') }).Count -gt 0) { return 'Warning' }
-    if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'InstallStatus') -and (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus') -ne 'Installed' }).Count -gt 0) { return 'Warning' }
-    if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'ProductInstallStatus') -and (Get-ObjectValue -InputObject $_ -PropertyName 'ProductInstallStatus') -eq 'Issues detected' }).Count -gt 0) { return 'Warning' }
+    if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'InstallStatus') -and -not (Test-SPReportInstalledStatus (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus')) }).Count -gt 0) { return 'Warning' }
     if (@($Data | Where-Object { (Test-ObjectProperty -InputObject $_ -PropertyName 'LatestKnownStatus') -and (Get-ObjectValue -InputObject $_ -PropertyName 'LatestKnownStatus') -eq 'Below latest known build' }).Count -gt 0) { return 'Warning' }
     return 'Good'
 }
@@ -1487,38 +1495,22 @@ function Get-SPReportFarmServerUpdateStatus {
             }
         }
 
-        $productInstallStatus = 'Not available'
         $patchStatusSource = 'Farm build fallback'
-        $productStatusIsHealthy = $false
         if ($serverProductRows.Count -gt 0) {
-            $notInstalled = @($serverProductRows | Where-Object { -not (Test-SPReportInstalledStatus (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus')) })
-            $productStatuses = @($serverProductRows | ForEach-Object { Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus' } | Where-Object { $_ } | Select-Object -Unique)
-            $productInstallStatus = if ($notInstalled.Count -gt 0) { 'Issues detected' } elseif ($productStatuses.Count -gt 0) { $productStatuses -join ', ' } else { 'NoActionRequired' }
-            $productStatusIsHealthy = ($notInstalled.Count -eq 0)
-            $patchStatusSource = 'Get-SPProduct -Server'
+            $patchStatusSource = (Get-ObjectValue -InputObject $serverProductRows[0] -PropertyName 'Source')
         }
         elseif ($serverPatchRows.Count -gt 0) {
-            $notInstalled = @($serverPatchRows | Where-Object { -not (Test-SPReportInstalledStatus (Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus')) })
-            $productStatuses = @($serverPatchRows | ForEach-Object { Get-ObjectValue -InputObject $_ -PropertyName 'InstallStatus' } | Where-Object { $_ } | Select-Object -Unique)
-            $productInstallStatus = if ($notInstalled.Count -gt 0) { 'Issues detected' } elseif ($productStatuses.Count -gt 0) { $productStatuses -join ', ' } else { 'Installed' }
-            $productStatusIsHealthy = ($notInstalled.Count -eq 0)
             $patchStatusSource = 'Central Administration Patch Status'
         }
         elseif ($patchStatusError) {
             $patchStatusSource = Get-ObjectValue -InputObject $patchStatusError -PropertyName 'Details'
         }
 
-        $farmRelativeStatus = 'Patch status not available; farm build used'
         $latestKnownStatus = 'Not evaluated'
         $latestUpdate = ''
         $latestSecurityUpdate = ''
         $windowsSharePointUpdate = ''
         $updateQueryStatus = 'Not queried'
-
-        if ($serverProductRows.Count -gt 0 -or $serverPatchRows.Count -gt 0) {
-            if ($productStatusIsHealthy) { $farmRelativeStatus = 'No SharePoint patch action required' }
-            else { $farmRelativeStatus = 'Patch install issue detected' }
-        }
 
         if ($latestKnownVersionNumber -gt 0) {
             if ($serverBuildVersionNumber -ge $latestKnownVersionNumber) { $latestKnownStatus = 'At or above latest known build' }
@@ -1553,9 +1545,7 @@ function Get-SPReportFarmServerUpdateStatus {
             InstalledSharePointUpdate = Get-ObjectValue -InputObject $installedSharePointUpdate -PropertyName 'UpdateName'
             InstalledSharePointKB   = Get-ObjectValue -InputObject $installedSharePointUpdate -PropertyName 'KB'
             InstalledSharePointReleaseDate = Get-ObjectValue -InputObject $installedSharePointUpdate -PropertyName 'ReleaseDate'
-            ProductInstallStatus    = $productInstallStatus
             PatchStatusSource       = $patchStatusSource
-            FarmRelativeStatus      = $farmRelativeStatus
             LatestKnownBuild        = $effectiveLatestBuild
             LatestKnownUpdateName   = $effectiveLatestUpdateName
             LatestKnownKB           = Get-ObjectValue -InputObject $microsoftLatest -PropertyName 'KB'
@@ -2238,7 +2228,7 @@ try {
     Add-ReportSection -Title (Get-ReportText -Key 'FarmVersionTitle') -Description (Get-ReportText -Key 'FarmVersionDescription') -Data $version -Columns @('Product', 'BuildVersion', 'FarmId', 'Configuration', 'Status') -Status (Get-SectionStatus -Data $version)
     Add-ReportSection -Title (Get-ReportText -Key 'FarmOverviewTitle') -Description (Get-ReportText -Key 'FarmOverviewDescription') -Data $farmOverview -Columns @('FarmId', 'Status', 'BuildVersion', 'ConfigurationDatabase', 'ConfigurationDatabaseSize', 'TimerServiceAccount', 'CentralAdministration') -Status (Get-SectionStatus -Data $farmOverview)
     Add-ReportSection -Title (Get-ReportText -Key 'ServersTitle') -Description (Get-ReportText -Key 'ServersDescription') -Data $servers -Columns @('Name', 'Role', 'ServerRole', 'CompliantWithMinRole', 'Address', 'Status', 'SharePointBuild') -Status (Get-SectionStatus -Data $servers)
-    Add-ReportSection -Title (Get-ReportText -Key 'FarmServerUpdatesTitle') -Description (Get-ReportText -Key 'FarmServerUpdatesDescription') -Data $farmServerUpdateStatus -Columns @('Server', 'Role', 'Status', 'FarmBuild', 'SharePointBuild', 'InstalledSharePointUpdate', 'InstalledSharePointKB', 'InstalledSharePointReleaseDate', 'ProductInstallStatus', 'PatchStatusSource', 'FarmRelativeStatus', 'LatestKnownBuild', 'LatestKnownUpdateName', 'LatestKnownKB', 'LatestKnownReleaseDate', 'LatestKnownStatus', 'MicrosoftLookupProduct', 'MicrosoftLookupStatus', 'MicrosoftLookupSource', 'CacheLastRefresh', 'CachedUpdateCount', 'WindowsSharePointUpdate', 'LatestWindowsUpdate', 'LatestWindowsSecurityUpdate', 'UpdateQueryStatus') -Status (Get-SectionStatus -Data $farmServerUpdateStatus)
+    Add-ReportSection -Title (Get-ReportText -Key 'FarmServerUpdatesTitle') -Description (Get-ReportText -Key 'FarmServerUpdatesDescription') -Data $farmServerUpdateStatus -Columns @('Server', 'Role', 'Status', 'FarmBuild', 'SharePointBuild', 'InstalledSharePointUpdate', 'InstalledSharePointKB', 'InstalledSharePointReleaseDate', 'PatchStatusSource', 'LatestKnownBuild', 'LatestKnownUpdateName', 'LatestKnownKB', 'LatestKnownReleaseDate', 'LatestKnownStatus', 'MicrosoftLookupProduct', 'MicrosoftLookupStatus', 'MicrosoftLookupSource', 'CacheLastRefresh', 'CachedUpdateCount', 'WindowsSharePointUpdate', 'LatestWindowsUpdate', 'LatestWindowsSecurityUpdate', 'UpdateQueryStatus') -Status (Get-SectionStatus -Data $farmServerUpdateStatus)
     Add-ReportSection -Title (Get-ReportText -Key 'CentralAdminPatchStatusTitle') -Description (Get-ReportText -Key 'CentralAdminPatchStatusDescription') -Data $centralAdminPatchStatus -Columns @('Server', 'Product', 'Version', 'InstallStatus', 'Source', 'Error', 'Details') -Status (Get-SectionStatus -Data $centralAdminPatchStatus)
     Add-ReportSection -Title (Get-ReportText -Key 'InstalledUpdatesTitle') -Description (Get-ReportText -Key 'InstalledUpdatesDescription') -Data $installedUpdates -Columns @('Server', 'Role', 'HotFixId', 'Description', 'InstalledBy', 'InstalledOn', 'Caption', 'UpdateType') -Status (Get-SectionStatus -Data $installedUpdates)
     Add-ReportSection -Title (Get-ReportText -Key 'UpdateCacheHistoryTitle') -Description (Get-ReportText -Key 'UpdateCacheHistoryDescription') -Data $cachedUpdateHistory -Columns @('Product', 'LatestBuild', 'UpdateName', 'KB', 'ReleaseDate', 'CacheFetchedAt', 'CacheSource') -Status (Get-SectionStatus -Data $cachedUpdateHistory)
