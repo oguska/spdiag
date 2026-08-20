@@ -98,6 +98,7 @@ Available skip switches:
 - `-SkipSiteCollections`
 - `-SkipTimerJobs`
 - `-SkipHealthAnalyzer`
+- `-SkipUnhealthyHealthAnalyzerFindings`
 - `-SkipSearchTopology`
 - `-SkipFeatureInventory`
 - `-SkipIisDetails`
@@ -265,6 +266,8 @@ Servers with SharePoint role `Invalid`:
 - Rule ID
 
 By default, this section uses fast Health Analyzer rule inventory fallback rows with remediation guidance and does not open the Central Administration Health Reports list. Use `-IncludeCentralAdminHealthReports` to read detailed Central Administration findings. When enabled, rows without actual finding data are filtered out, the script reads the 200 most recently modified report items, and it returns up to 50 finding rows. When a Health Analyzer item has a remedy value, that text is reused as the possible solution. If Central Administration does not expose populated finding fields, the section falls back to Health Analyzer rule inventory rows with fallback remediation guidance instead of returning an empty table.
+
+Use `-SkipUnhealthyHealthAnalyzerFindings` to skip only the `Unhealthy Health Analyzer Findings` section while still collecting `Health Analyzer Rules`. Use `-SkipHealthAnalyzer` to skip both Health Analyzer sections.
 
 ## Server Health
 

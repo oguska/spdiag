@@ -52,6 +52,9 @@ param(
     [switch]$SkipHealthAnalyzer,
 
     [Parameter()]
+    [switch]$SkipUnhealthyHealthAnalyzerFindings,
+
+    [Parameter()]
     [switch]$IncludeCentralAdminHealthReports,
 
     [Parameter()]
@@ -2262,7 +2265,13 @@ try {
     }
 
     if (-not $SkipHealthAnalyzer) {
-        Add-SectionFromCollector -Title (Get-ReportText -Key 'HealthAnalyzerFindingsTitle') -Description (Get-ReportText -Key 'HealthAnalyzerFindingsDescription') -Collector { Get-SPReportHealthAnalyzerFindings } -Columns @('Title', 'Category', 'Severity', 'CurrentStatus', 'Explanation', 'Remedy', 'PossibleSolution', 'FailingServers', 'FailingServices', 'Modified', 'RuleId')
+        if (-not $SkipUnhealthyHealthAnalyzerFindings) {
+            Add-SectionFromCollector -Title (Get-ReportText -Key 'HealthAnalyzerFindingsTitle') -Description (Get-ReportText -Key 'HealthAnalyzerFindingsDescription') -Collector { Get-SPReportHealthAnalyzerFindings } -Columns @('Title', 'Category', 'Severity', 'CurrentStatus', 'Explanation', 'Remedy', 'PossibleSolution', 'FailingServers', 'FailingServices', 'Modified', 'RuleId')
+        }
+        else {
+            Add-ReportSection -Title (Get-ReportText -Key 'HealthAnalyzerFindingsTitle') -Description ('{0} -SkipUnhealthyHealthAnalyzerFindings.' -f (Get-ReportText -Key 'SkippedBy')) -Data @() -Columns @('Title', 'Category', 'Severity') -Status 'Unknown'
+        }
+
         Add-SectionFromCollector -Title (Get-ReportText -Key 'HealthAnalyzerTitle') -Description (Get-ReportText -Key 'HealthAnalyzerDescription') -Collector { Get-SPReportHealthAnalyzer } -Columns @('Category', 'Summary', 'Severity', 'Enabled', 'Schedule', 'RepairAutomatically')
     }
     else {
